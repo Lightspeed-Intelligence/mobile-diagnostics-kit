@@ -1,0 +1,73 @@
+{
+  "name": "mobile-diagnostics-kit",
+  "version": "0.1.0",
+  "description": "On-device diagnostics for React Native and Expo apps, powered by DoKit",
+  "keywords": [
+    "react-native",
+    "expo",
+    "dokit",
+    "mmkv",
+    "diagnostics",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit.git"
+  },
+  "homepage": "https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit#readme",
+  "bugs": {
+    "url": "https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit/issues"
+  },
+  "sideEffects": false,
+  "main": "src/index.ts",
+  "react-native": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./plugin": "./plugin/withDoKit.js",
+    "./plugin/withDoKit": "./plugin/withDoKit.js",
+    "./ios/MobileDiagnosticsKit.podspec": "./ios/MobileDiagnosticsKit.podspec"
+  },
+  "files": [
+    "src",
+    "plugin",
+    "ios",
+    "app.plugin.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check:public": "node scripts/check-public-content.mjs",
+    "verify": "npm run test && npm run typecheck && npm run check:public",
+    "prepack": "npm run verify"
+  },
+  "peerDependencies": {
+    "@expo/config-plugins": ">=8",
+    "react": ">=18",
+    "react-native": ">=0.72"
+  },
+  "peerDependenciesMeta": {
+    "@expo/config-plugins": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "^54.0.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "react": "19.1.1",
+    "react-native": "0.81.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
