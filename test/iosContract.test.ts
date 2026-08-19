@@ -53,4 +53,108 @@ describe('iOS DoKit wrapper', () => {
     expect(installDoKit).toBeGreaterThan(registerExpoUpdate)
     expect(source).toContain('hiddenHomeWindow')
   })
+
+  it('replaces DoKit’s legacy network page with the public diagnostics surface', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(source).toContain('DoraemonNetFlowPlugin')
+    expect(source).toContain(
+      '#import <DoraemonKit/DoraemonHomeWindow.h>'
+    )
+    expect(source).toContain('removePluginWithPluginName')
+    expect(source).toContain('saveKitManagerData')
+    expect(source).toContain('MDKNetworkPlugin')
+
+    const removeLegacy = source.indexOf('removePluginWithPluginName')
+    const refreshDoKitCache = source.indexOf('saveKitManagerData')
+    const registerReplacement = source.indexOf('pluginName:@"MDKNetworkPlugin"')
+    expect(refreshDoKitCache).toBeGreaterThan(removeLegacy)
+    expect(registerReplacement).toBeGreaterThan(refreshDoKitCache)
+    expect(networkSource).toContain('DoraemonNetFlowDataSource')
+    expect(networkSource).toContain(
+      '#import <DoraemonKit/DoraemonCacheManager.h>'
+    )
+    expect(networkSource).toContain(
+      '#import <DoraemonKit/DoraemonHomeWindow.h>'
+    )
+    expect(networkSource).toContain(
+      '#import <DoraemonKit/DoraemonNetFlowDataSource.h>'
+    )
+    expect(networkSource).toContain(
+      '#import <DoraemonKit/DoraemonNetFlowHttpModel.h>'
+    )
+    expect(networkSource).toContain(
+      '#import <DoraemonKit/DoraemonNetFlowManager.h>'
+    )
+    expect(networkSource).not.toContain('NSString *copyContent')
+    expect(networkSource).toContain('MDKNetworkRequestCell')
+    expect(networkSource).toContain('MDKNetworkDetailViewController')
+    expect(networkSource).toContain('Network')
+    expect(networkSource).toContain('Network list')
+    expect(networkSource).toContain('Network summary')
+    expect(networkSource).toContain('UIContentSizeCategoryDidChangeNotification')
+  })
+
+  it('preserves DoKit network data semantics in the custom presentation', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    // Transport errors are stored by DoKit as localized, non-numeric status
+    // strings. They must remain visible in the Errors filter and summary.
+    expect(networkSource).toContain('MDKParseHTTPStatusCode')
+    expect(networkSource).toContain('scanner.isAtEnd')
+    expect(networkSource).toContain('return !MDKParseHTTPStatusCode')
+
+    // Display formatting must not replace the exact captured body copied by
+    // the tester, and binary responses must not be mislabeled as empty.
+    expect(networkSource).toContain('displayContent:')
+    expect(networkSource).toContain('copyContent:')
+    expect(networkSource).toContain('MDKResponseBodyDisplay')
+    expect(networkSource).toContain('Binary response body')
+    expect(networkSource).toContain('self.model.responseBody')
+
+    // DoKit clears its data source when capture is disabled; the visible
+    // snapshot must be refreshed in the same action.
+    const captureChanged = networkSource.indexOf(
+      '- (void)captureSwitchChanged'
+    )
+    const refreshAfterCapture = networkSource.indexOf(
+      '[self refreshRequests]',
+      captureChanged
+    )
+    expect(refreshAfterCapture).toBeGreaterThan(captureChanged)
+  })
+
+  it('keeps request chips compact and the DoKit entry clear of inspector controls', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(networkSource).toContain(
+      '[_methodLabel setContentHuggingPriority:UILayoutPriorityRequired'
+    )
+
+    const detailController = networkSource.indexOf(
+      '@implementation MDKNetworkDetailViewController'
+    )
+    const listController = networkSource.indexOf(
+      '@implementation MDKNetworkInspectorViewController'
+    )
+    const detailSource = networkSource.slice(detailController, listController)
+    const listSource = networkSource.slice(listController)
+
+    expect(detailSource).toContain(
+      '[[DoraemonManager shareInstance] hiddenDoraemon]'
+    )
+    expect(listSource).toContain(
+      '[[DoraemonManager shareInstance] hiddenDoraemon]'
+    )
+    expect(listSource).toContain(
+      '[[DoraemonManager shareInstance] showDoraemon]'
+    )
+  })
 })

@@ -1,7 +1,9 @@
 #import "MobileDiagnostics.h"
+#import "MDKNetworkInspectorViewController.h"
 
 #import <DoraemonKit/DoraemonKit.h>
 #import <DoraemonKit/DoraemonCacheManager.h>
+#import <DoraemonKit/DoraemonHomeWindow.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
 
@@ -37,6 +39,42 @@ static void MDKDisableDoKitTelemetry(void) {
   if (telemetryMethod != NULL) {
     method_setImplementation(telemetryMethod, (IMP)MDKIgnoreTelemetryPoint);
   }
+}
+
+static NSString *MDKModuleContainingPlugin(DoraemonManager *manager,
+                                           NSString *pluginName) {
+  for (NSDictionary *module in manager.dataArray) {
+    for (NSDictionary *plugin in module[@"pluginArray"]) {
+      if ([plugin[@"pluginName"] isEqualToString:pluginName]) {
+        return module[@"moduleName"];
+      }
+    }
+  }
+  return nil;
+}
+
+static void MDKReplaceLegacyNetworkPlugin(DoraemonManager *manager) {
+  NSString *legacyPlugin = @"DoraemonNetFlowPlugin";
+  NSString *legacyModule = MDKModuleContainingPlugin(manager, legacyPlugin);
+  if (legacyModule.length > 0) {
+    [manager removePluginWithPluginName:legacyPlugin atModule:legacyModule];
+  }
+
+  // DoKit persists built-in visibility separately from manager.dataArray.
+  // Refresh it after removal so upgraded QA installs cannot resurrect the
+  // legacy Network entry from a previous session.
+  [[DoraemonCacheManager sharedInstance]
+      saveKitManagerData:manager.dataArray];
+
+  [manager addPluginWithTitle:@"Network"
+                         icon:@"doraemon_net"
+                         desc:@"Inspect captured requests"
+                   pluginName:@"MDKNetworkPlugin"
+                      atModule:@"Application Tools"
+                        handle:^(__unused NSDictionary *itemData) {
+    [DoraemonHomeWindow openPlugin:
+                            [[MDKNetworkInspectorViewController alloc] init]];
+  }];
 }
 
 @implementation MDKMobileDiagnostics
@@ -78,6 +116,7 @@ static void MDKDisableDoKitTelemetry(void) {
     }];
 
     [[DoraemonManager shareInstance] install];
+    MDKReplaceLegacyNetworkPlugin(manager);
   });
 }
 

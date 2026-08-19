@@ -2,15 +2,16 @@
 
 Mobile Diagnostics Kit is a small, privacy-oriented DoKit extension for React
 Native and Expo applications. DoKit remains the only launcher: this package
-registers `Local State` and `Expo Update` as custom tools inside DoKit, then
-opens a polished React Native screen for the selected tool.
+registers `Local State` and `Expo Update` as custom tools inside DoKit, opens a
+polished React Native screen for the selected tool, and replaces the legacy iOS
+network list with an on-device inspector.
 
 ## What it provides
 
 - DoKit 3.7.11 setup for Expo Android, including React Native OkHttp capture
   and two custom kits under `Application Tools`;
-- DoKit 3.1.7 ownership for iOS, including two custom plugins registered in
-  DoKit's own home panel;
+- DoKit 3.1.7 ownership for iOS, including two custom plugins and a modern
+  Network inspector registered in DoKit's own home panel;
 - a compact React Native diagnostics panel with accessible touch targets;
 - MMKV field add, update, delete, and explicitly permitted entry reset;
 - support for nested Zustand persist envelopes through `valuePath`;
@@ -153,8 +154,12 @@ MobileDiagnostics.install { destination in
 ```
 
 The wrapper disables DoKit 3.1.7's internal telemetry collector, registers
-`Local State` and `Expo Update` in DoKit, and then installs DoKit's own floating
-entry. It does not add another floating button or modify files inside `Pods`.
+`Local State` and `Expo Update` in DoKit, replaces DoKit's legacy `Network`
+page, and then installs DoKit's own floating entry. The replacement reads
+DoKit's in-memory request models and provides search, error filtering,
+capture control, transfer metrics, and request/response details. It neither
+persists nor uploads captured contents, does not add another floating button,
+and does not modify files inside `Pods`.
 
 ## Expo OTA semantics
 
