@@ -52,6 +52,8 @@ describe('DoKit Expo config plugin', () => {
     expect(buildGradle.match(/dokitx-okhttp-v4:3\.7\.11/g)).toHaveLength(1)
     expect(application.match(/disableUpload\(\)/g)).toHaveLength(1)
     expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
+    expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
+    expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
   })
@@ -74,6 +76,8 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('"storage"')
     expect(source).toContain('"ota"')
     expect(source).toContain('RCTDeviceEventEmitter')
+    expect(source).toContain('reactApplication?.reactHost?.currentReactContext')
+    expect(source).toContain('reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext')
     expect(source).not.toContain('Tipsy')
   })
 

@@ -11,6 +11,7 @@ const DOKIT_DEPENDENCIES = [
 ]
 const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.DoKit',
+  'import com.didichuxing.doraemonkit.aop.DokitPluginConfig',
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
@@ -82,6 +83,8 @@ function addDoKitToMainApplication(contents) {
   const indent = match[1]
   const block = [
     `${indent}// On-device diagnostics. DoKit telemetry is disabled.`,
+    `${indent}DokitPluginConfig.SWITCH_DOKIT_PLUGIN = true`,
+    `${indent}DokitPluginConfig.SWITCH_NETWORK = true`,
     renderDoKitInitialization(indent, eol),
     `${indent}OkHttpClientProvider.setOkHttpClientFactory {`,
     `${indent}  OkHttpClientProvider.createClientBuilder(this)`,
@@ -143,10 +146,8 @@ internal object MobileDiagnosticsDoKit {
 
     override fun onClickWithReturn(activity: Activity): Boolean {
       val reactApplication = activity.application as? ReactApplication
-      val reactContext = reactApplication
-        ?.reactNativeHost
-        ?.reactInstanceManager
-        ?.currentReactContext
+      val reactContext = reactApplication?.reactHost?.currentReactContext
+        ?: reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext
       if (reactContext == null) {
         Toast.makeText(
           activity,
