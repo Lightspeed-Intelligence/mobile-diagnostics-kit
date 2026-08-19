@@ -18,10 +18,14 @@ describe('iOS DoKit wrapper', () => {
 
   it('disables DoKit telemetry before installing the on-device entry', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
+    const disableUsageUpload = source.indexOf('DoraemonStatisticsUtil')
     const disableTelemetry = source.indexOf('method_setImplementation')
     const installDoKit = source.indexOf('DoraemonManager shareInstance')
 
+    expect(disableUsageUpload).toBeGreaterThan(-1)
     expect(disableTelemetry).toBeGreaterThan(-1)
+    expect(source).toContain('setNoUpLoad:')
+    expect(installDoKit).toBeGreaterThan(disableUsageUpload)
     expect(installDoKit).toBeGreaterThan(disableTelemetry)
     expect(source).toContain('dispatch_once')
   })
