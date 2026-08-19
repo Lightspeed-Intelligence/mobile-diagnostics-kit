@@ -25,4 +25,20 @@ describe('iOS DoKit wrapper', () => {
     expect(installDoKit).toBeGreaterThan(disableTelemetry)
     expect(source).toContain('dispatch_once')
   })
+
+  it('registers local-state and Expo-update destinations inside DoKit', () => {
+    const header = read('ios/Sources/MobileDiagnostics.h')
+    const source = read('ios/Sources/MobileDiagnostics.m')
+    const registerLocalState = source.indexOf('@"Local State"')
+    const registerExpoUpdate = source.indexOf('@"Expo Update"')
+    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
+
+    expect(header).toContain('MDKDiagnosticsDestinationLocalState')
+    expect(header).toContain('MDKDiagnosticsDestinationExpoUpdate')
+    expect(header).toContain('installWithOpenHandler')
+    expect(registerLocalState).toBeGreaterThan(-1)
+    expect(registerExpoUpdate).toBeGreaterThan(registerLocalState)
+    expect(installDoKit).toBeGreaterThan(registerExpoUpdate)
+    expect(source).toContain('hiddenHomeWindow')
+  })
 })

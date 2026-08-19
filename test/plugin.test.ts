@@ -24,6 +24,13 @@ class MainApplication : Application(), ReactApplication {
 `
 
 describe('DoKit Expo config plugin', () => {
+  it('exports the conventional Expo plugin entry when package exports are enabled', () => {
+    const packageJson = require('../package.json')
+
+    expect(packageJson.exports['./app.plugin.js']).toBe('./app.plugin.js')
+    expect(require('../app.plugin.js')).toBeTypeOf('function')
+  })
+
   it('adds DoKit, React Native network capture, and release keep rules once', () => {
     const {
       addDoKitDependencies,
@@ -45,7 +52,29 @@ describe('DoKit Expo config plugin', () => {
     expect(buildGradle.match(/dokitx-okhttp-v4:3\.7\.11/g)).toHaveLength(1)
     expect(application.match(/disableUpload\(\)/g)).toHaveLength(1)
     expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
+    expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
+  })
+
+  it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('class DestinationKit')
+    expect(source).toContain('AbstractKit()')
+    expect(source).toContain('override val name: Int')
+    expect(source).toContain('override val icon: Int')
+    expect(source).toContain('override fun onAppInit(context: Context?)')
+    expect(source).not.toContain('override fun getName()')
+    expect(source).not.toContain('override fun getIcon()')
+    expect(source).toContain('mobile-diagnostics-kit.open')
+    expect(source).toContain('"storage"')
+    expect(source).toContain('"ota"')
+    expect(source).toContain('RCTDeviceEventEmitter')
+    expect(source).not.toContain('Tipsy')
   })
 
   it('fails clearly when generated Android files have an unsupported shape', () => {

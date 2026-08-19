@@ -14,7 +14,10 @@ const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
-const DOKIT_INIT_MARKER = 'DoKit.Builder(this).disableUpload().build()'
+const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
+const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
+const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
+const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
 const PROGUARD_RULE = '-keep class com.didichuxing.doraemonkit.** { *; }'
 
@@ -59,6 +62,15 @@ function addDoKitToMainApplication(contents) {
 
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
   const next = DOKIT_IMPORTS.reduce(addImport, contents)
+  if (next.includes(LEGACY_DOKIT_INIT)) {
+    const legacyLine = new RegExp(
+      `^(\\s*)${LEGACY_DOKIT_INIT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+      'm'
+    )
+    return next.replace(legacyLine, (_line, indent) =>
+      renderDoKitInitialization(indent, eol)
+    )
+  }
   const marker = /^(\s*)super\.onCreate\(\)\s*$/m
   const match = next.match(marker)
   if (!match) {
@@ -70,7 +82,7 @@ function addDoKitToMainApplication(contents) {
   const indent = match[1]
   const block = [
     `${indent}// On-device diagnostics. DoKit telemetry is disabled.`,
-    `${indent}${DOKIT_INIT_MARKER}`,
+    renderDoKitInitialization(indent, eol),
     `${indent}OkHttpClientProvider.setOkHttpClientFactory {`,
     `${indent}  OkHttpClientProvider.createClientBuilder(this)`,
     `${indent}    .addInterceptor(DokitCapInterceptor())`,
@@ -78,6 +90,102 @@ function addDoKitToMainApplication(contents) {
     `${indent}}`,
   ].join(eol)
   return next.replace(marker, `$&${eol}${block}`)
+}
+
+function renderDoKitInitialization(indent, eol) {
+  return [
+    `${indent}DoKit.Builder(this)`,
+    `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
+    `${indent}  .disableUpload()`,
+    `${indent}  .build()`,
+  ].join(eol)
+}
+
+function renderMobileDiagnosticsDoKitSource(packageName) {
+  return `package ${packageName}
+
+import android.app.Activity
+import android.content.Context
+import android.widget.Toast
+import com.didichuxing.doraemonkit.DoKit
+import com.didichuxing.doraemonkit.kit.AbstractKit
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.util.LinkedHashMap
+
+internal object MobileDiagnosticsDoKit {
+  private const val OPEN_EVENT = "mobile-diagnostics-kit.open"
+
+  fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
+    "Application Tools" to listOf(
+      DestinationKit("storage"),
+      DestinationKit("ota"),
+    ),
+  )
+
+  private class DestinationKit(
+    private val destination: String,
+  ) : AbstractKit() {
+    override val name: Int
+      get() = when (destination) {
+      "ota" -> R.string.mobile_diagnostics_expo_update
+      else -> R.string.mobile_diagnostics_local_state
+    }
+
+    override val icon: Int
+      get() = when (destination) {
+      "ota" -> android.R.drawable.ic_popup_sync
+      else -> android.R.drawable.ic_menu_edit
+    }
+
+    override fun onAppInit(context: Context?) = Unit
+
+    override fun onClickWithReturn(activity: Activity): Boolean {
+      val reactApplication = activity.application as? ReactApplication
+      val reactContext = reactApplication
+        ?.reactNativeHost
+        ?.reactInstanceManager
+        ?.currentReactContext
+      if (reactContext == null) {
+        Toast.makeText(
+          activity,
+          R.string.mobile_diagnostics_runtime_unavailable,
+          Toast.LENGTH_SHORT,
+        ).show()
+        return false
+      }
+
+      val payload = Arguments.createMap().apply {
+        putString("destination", destination)
+      }
+      reactContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit(OPEN_EVENT, payload)
+      DoKit.hideToolPanel()
+      return true
+    }
+  }
+}
+`
+}
+
+function renderMobileDiagnosticsResources() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mobile_diagnostics_local_state">Local State</string>
+  <string name="mobile_diagnostics_expo_update">Expo Update</string>
+  <string name="mobile_diagnostics_runtime_unavailable">Diagnostics runtime is not ready</string>
+</resources>
+`
+}
+
+function readPackageName(mainApplicationContents) {
+  const match = mainApplicationContents.match(/^package\s+([A-Za-z0-9_.]+)\s*$/m)
+  if (!match) {
+    throw new Error('withDoKit: MainApplication package declaration not found')
+  }
+  return match[1]
 }
 
 function addDoKitProguardRules(contents) {
@@ -126,7 +234,25 @@ function withDoKit(config) {
       if (!mainApplication) {
         throw new Error('withDoKit: generated MainApplication.kt not found')
       }
+      const mainApplicationContents = fs.readFileSync(mainApplication, 'utf8')
+      const packageName = readPackageName(mainApplicationContents)
       writeTransformedFile(mainApplication, addDoKitToMainApplication)
+      writeTransformedFile(
+        path.join(path.dirname(mainApplication), GENERATED_SOURCE_NAME),
+        () => renderMobileDiagnosticsDoKitSource(packageName)
+      )
+      writeTransformedFile(
+        path.join(
+          projectRoot,
+          'app',
+          'src',
+          'main',
+          'res',
+          'values',
+          GENERATED_RESOURCES_NAME
+        ),
+        renderMobileDiagnosticsResources
+      )
       writeTransformedFile(
         path.join(projectRoot, 'app', 'proguard-rules.pro'),
         addDoKitProguardRules
@@ -140,3 +266,6 @@ module.exports = withDoKit
 module.exports.addDoKitDependencies = addDoKitDependencies
 module.exports.addDoKitProguardRules = addDoKitProguardRules
 module.exports.addDoKitToMainApplication = addDoKitToMainApplication
+module.exports.renderMobileDiagnosticsDoKitSource =
+  renderMobileDiagnosticsDoKitSource
+module.exports.renderMobileDiagnosticsResources = renderMobileDiagnosticsResources
