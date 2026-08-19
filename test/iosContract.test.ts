@@ -157,4 +157,76 @@ describe('iOS DoKit wrapper', () => {
       '[[DoraemonManager shareInstance] showDoraemon]'
     )
   })
+
+  it('classifies captured requests by response type before request semantics', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(networkSource).toContain('MDKNetworkResourceTypeFetch')
+    expect(networkSource).toContain('MDKNetworkResourceTypeImage')
+    expect(networkSource).toContain('MDKNetworkResourceTypeMedia')
+    expect(networkSource).toContain('MDKNetworkResourceTypeOther')
+
+    const classifierStart = networkSource.indexOf(
+      'MDKResourceTypeForModel(DoraemonNetFlowHttpModel *model)'
+    )
+    const classifierEnd = networkSource.indexOf(
+      '#pragma mark - Request cell',
+      classifierStart
+    )
+    const classifier = networkSource.slice(classifierStart, classifierEnd)
+    const imageCheck = classifier.indexOf('hasPrefix:@"image/"')
+    const videoCheck = classifier.indexOf('hasPrefix:@"video/"')
+    const audioCheck = classifier.indexOf('hasPrefix:@"audio/"')
+    const fetchFallback = classifier.indexOf('MDKNetworkResourceTypeFetch')
+
+    expect(classifierStart).toBeGreaterThan(-1)
+    expect(imageCheck).toBeGreaterThan(-1)
+    expect(videoCheck).toBeGreaterThan(imageCheck)
+    expect(audioCheck).toBeGreaterThan(videoCheck)
+    expect(fetchFallback).toBeGreaterThan(audioCheck)
+    expect(classifier).toContain('pathExtension.lowercaseString')
+    expect(classifier).toContain('containsString:@"+json"')
+    expect(classifier).toContain('HTTPMethod.uppercaseString')
+  })
+
+  it('offers a horizontally scrollable DevTools-style type filter', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(networkSource).toContain(
+      'initWithItems:@[ @"All", @"Fetch", @"Image", @"Media", @"Other", @"Errors" ]'
+    )
+    expect(networkSource).toContain('filterScrollView')
+    expect(networkSource).toContain('showsHorizontalScrollIndicator = NO')
+    expect(networkSource).toContain('MDKResourceTypeForModel(model)')
+    expect(networkSource).toContain('mobileDiagnostics.network.filterControl')
+    expect(networkSource).toContain('self.accessibilityValue = MDKResourceTypeTitle')
+  })
+
+  it('presents request details as structured DevTools-style sections', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(networkSource).toContain('MDKNetworkKeyValueSectionView')
+    expect(networkSource).toContain('MDKHeaderRows')
+    expect(networkSource).toContain('@"General"')
+    expect(networkSource).toContain('@"Request Headers"')
+    expect(networkSource).toContain('@"Payload"')
+    expect(networkSource).toContain('@"Response Headers"')
+    expect(networkSource).toContain('@"Response Body"')
+    expect(networkSource).toContain('initiallyExpanded:NO')
+    expect(networkSource).toContain('toggleExpanded')
+    expect(networkSource).toContain('MDKAttributedBody')
+    expect(networkSource).toContain(
+      'initWithArrangedSubviews:@[heading, _divider, _rowsStack]'
+    )
+
+    // This is an on-device QA tool: display and copy preserve the raw capture.
+    expect(networkSource).not.toContain('MDKRedact')
+    expect(networkSource).toContain('copyContent:body')
+  })
 })

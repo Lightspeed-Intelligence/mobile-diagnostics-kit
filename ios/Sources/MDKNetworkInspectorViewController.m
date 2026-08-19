@@ -59,6 +59,18 @@ static UIColor *MDKAccentColor(void) {
   return MDKDynamic(0x15803D, 0x22C55E);
 }
 
+static UIColor *MDKCodeKeyColor(void) {
+  return MDKDynamic(0x1D4ED8, 0x60A5FA);
+}
+
+static UIColor *MDKCodeStringColor(void) {
+  return MDKDynamic(0x047857, 0x34D399);
+}
+
+static UIColor *MDKCodeLiteralColor(void) {
+  return MDKDynamic(0xA21CAF, 0xE879F9);
+}
+
 static UIColor *MDKMethodColor(NSString *method) {
   NSString *normalized = method.uppercaseString;
   if ([normalized isEqualToString:@"GET"]) {
@@ -231,22 +243,42 @@ static NSString *MDKMetadata(DoraemonNetFlowHttpModel *model) {
                        MDKStartTime(model)];
 }
 
-static NSString *MDKHeadersText(NSDictionary *headers) {
+static NSArray<NSDictionary<NSString *, NSString *> *> *
+MDKHeaderRows(NSDictionary *headers) {
   if (headers.count == 0) {
-    return @"No headers";
+    return @[];
   }
   NSArray *keys = [headers.allKeys
       sortedArrayUsingComparator:^NSComparisonResult(id left, id right) {
         return [[left description]
             localizedCaseInsensitiveCompare:[right description]];
       }];
-  NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithCapacity:keys.count];
+  NSMutableArray<NSDictionary<NSString *, NSString *> *> *rows =
+      [NSMutableArray arrayWithCapacity:keys.count];
   for (id key in keys) {
     id value = headers[key];
-    [lines addObject:[NSString stringWithFormat:@"%@: %@", [key description],
-                                                [value description]]];
+    [rows addObject:@{
+      @"name" : [key description] ?: @"",
+      @"value" : [value description] ?: @"",
+    }];
+  }
+  return rows;
+}
+
+static NSString *MDKRowsText(
+    NSArray<NSDictionary<NSString *, NSString *> *> *rows) {
+  NSMutableArray<NSString *> *lines =
+      [NSMutableArray arrayWithCapacity:rows.count];
+  for (NSDictionary<NSString *, NSString *> *row in rows) {
+    [lines addObject:[NSString stringWithFormat:@"%@: %@", row[@"name"] ?: @"",
+                                                row[@"value"] ?: @""]];
   }
   return [lines componentsJoinedByString:@"\n"];
+}
+
+static NSString *MDKHeadersText(NSDictionary *headers) {
+  NSArray<NSDictionary<NSString *, NSString *> *> *rows = MDKHeaderRows(headers);
+  return rows.count > 0 ? MDKRowsText(rows) : @"No headers";
 }
 
 static NSString *MDKPrettyBody(NSString *body) {
@@ -276,6 +308,50 @@ static NSString *MDKPrettyBody(NSString *body) {
   return presented;
 }
 
+static NSAttributedString *MDKAttributedBody(NSString *body) {
+  NSString *presented = MDKPrettyBody(body);
+  NSMutableParagraphStyle *paragraph = [[NSMutableParagraphStyle alloc] init];
+  paragraph.lineSpacing = 3.0;
+  NSDictionary<NSAttributedStringKey, id> *baseAttributes = @{
+    NSFontAttributeName :
+        [UIFont monospacedSystemFontOfSize:12.0 weight:UIFontWeightRegular],
+    NSForegroundColorAttributeName : MDKSecondaryTextColor(),
+    NSParagraphStyleAttributeName : paragraph,
+  };
+  NSMutableAttributedString *attributed =
+      [[NSMutableAttributedString alloc] initWithString:presented
+                                             attributes:baseAttributes];
+
+  NSString *pattern =
+      @"\"(?:\\\\.|[^\"\\\\])*\"\\s*:|\"(?:\\\\.|[^\"\\\\])*\"|\\b(?:true|false|null)\\b|-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?";
+  NSRegularExpression *tokens =
+      [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+  [tokens enumerateMatchesInString:presented
+                           options:0
+                             range:NSMakeRange(0, presented.length)
+                        usingBlock:^(NSTextCheckingResult *result,
+                                     NSMatchingFlags flags, BOOL *stop) {
+                          (void)flags;
+                          (void)stop;
+                          if (!result || result.range.location == NSNotFound) {
+                            return;
+                          }
+                          NSString *token = [presented substringWithRange:result.range];
+                          UIColor *color = MDKCodeLiteralColor();
+                          if ([token hasPrefix:@"\""]) {
+                            NSString *trimmed = [token
+                                stringByTrimmingCharactersInSet:
+                                    NSCharacterSet.whitespaceAndNewlineCharacterSet];
+                            color = [trimmed hasSuffix:@":"] ? MDKCodeKeyColor()
+                                                             : MDKCodeStringColor();
+                          }
+                          [attributed addAttribute:NSForegroundColorAttributeName
+                                             value:color
+                                             range:result.range];
+                        }];
+  return attributed;
+}
+
 static NSString *MDKResponseBodyDisplay(DoraemonNetFlowHttpModel *model) {
   if (model.responseBody.length > 0) {
     return MDKPrettyBody(model.responseBody);
@@ -294,6 +370,100 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   NSInteger status = 0;
   return !MDKParseHTTPStatusCode(model.statusCode, &status) || status <= 0 ||
          status >= 400;
+}
+
+typedef NS_ENUM(NSInteger, MDKNetworkResourceType) {
+  MDKNetworkResourceTypeFetch = 1,
+  MDKNetworkResourceTypeImage = 2,
+  MDKNetworkResourceTypeMedia = 3,
+  MDKNetworkResourceTypeOther = 4,
+};
+
+static BOOL MDKExtensionMatches(NSString *extension,
+                                NSSet<NSString *> *extensions) {
+  return extension.length > 0 && [extensions containsObject:extension];
+}
+
+static MDKNetworkResourceType
+MDKResourceTypeForModel(DoraemonNetFlowHttpModel *model) {
+  NSString *mimeType = model.mineType.length > 0
+                           ? model.mineType.lowercaseString
+                           : model.response.MIMEType.lowercaseString;
+  mimeType = [[mimeType componentsSeparatedByString:@";"] firstObject] ?: @"";
+  mimeType = [mimeType
+      stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  NSString *extension =
+      [NSURL URLWithString:model.url ?: @""].pathExtension.lowercaseString;
+
+  static NSSet<NSString *> *imageExtensions;
+  static NSSet<NSString *> *mediaExtensions;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    imageExtensions = [NSSet setWithArray:@[
+      @"avif", @"bmp", @"gif", @"heic", @"heif", @"ico", @"jpeg",
+      @"jpg", @"png", @"svg", @"webp"
+    ]];
+    mediaExtensions = [NSSet setWithArray:@[
+      @"aac", @"avi", @"flac", @"m3u8", @"m4a", @"m4v", @"mkv",
+      @"mov", @"mp3", @"mp4", @"mpd", @"ogg", @"opus", @"wav",
+      @"webm"
+    ]];
+  });
+
+  if ([mimeType hasPrefix:@"image/"] ||
+      MDKExtensionMatches(extension, imageExtensions)) {
+    return MDKNetworkResourceTypeImage;
+  }
+  if ([mimeType hasPrefix:@"video/"] ||
+      [mimeType hasPrefix:@"audio/"] ||
+      [mimeType isEqualToString:@"application/vnd.apple.mpegurl"] ||
+      [mimeType isEqualToString:@"application/x-mpegurl"] ||
+      [mimeType isEqualToString:@"application/dash+xml"] ||
+      MDKExtensionMatches(extension, mediaExtensions)) {
+    return MDKNetworkResourceTypeMedia;
+  }
+
+  NSString *accept =
+      [[model.request valueForHTTPHeaderField:@"Accept"] lowercaseString] ?: @"";
+  NSString *contentType =
+      [[model.request valueForHTTPHeaderField:@"Content-Type"] lowercaseString] ?: @"";
+  BOOL structuredResponse =
+      [mimeType isEqualToString:@"application/json"] ||
+      [mimeType containsString:@"+json"] ||
+      [mimeType isEqualToString:@"application/graphql-response+json"] ||
+      [mimeType isEqualToString:@"application/xml"] ||
+      [mimeType isEqualToString:@"text/xml"] ||
+      [mimeType isEqualToString:@"text/plain"];
+  BOOL structuredRequest = [accept containsString:@"json"] ||
+                           [contentType containsString:@"json"] ||
+                           [contentType containsString:@"graphql"] ||
+                           [contentType containsString:@"x-www-form-urlencoded"] ||
+                           [contentType containsString:@"multipart/form-data"];
+  NSString *method = model.request.HTTPMethod.uppercaseString;
+  if (method.length == 0) {
+    method = model.method.uppercaseString;
+  }
+  BOOL requestHasPayloadSemantics =
+      method.length > 0 && ![method isEqualToString:@"GET"] &&
+      ![method isEqualToString:@"HEAD"];
+  if (structuredResponse || structuredRequest || requestHasPayloadSemantics) {
+    return MDKNetworkResourceTypeFetch;
+  }
+  return MDKNetworkResourceTypeOther;
+}
+
+static NSString *MDKResourceTypeTitle(MDKNetworkResourceType type) {
+  switch (type) {
+  case MDKNetworkResourceTypeFetch:
+    return @"Fetch";
+  case MDKNetworkResourceTypeImage:
+    return @"Image";
+  case MDKNetworkResourceTypeMedia:
+    return @"Media";
+  case MDKNetworkResourceTypeOther:
+    return @"Other";
+  }
+  return @"Other";
 }
 
 #pragma mark - Request cell
@@ -448,6 +618,7 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   self.accessibilityIdentifier = [NSString
       stringWithFormat:@"mobileDiagnostics.network.request.%@",
                        model.requestId.length > 0 ? model.requestId : @"item"];
+  self.accessibilityValue = MDKResourceTypeTitle(MDKResourceTypeForModel(model));
   self.accessibilityTraits = UIAccessibilityTraitButton;
 }
 
@@ -467,7 +638,245 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
 
 #pragma mark - Detail section
 
-@interface MDKNetworkDetailSectionView : UIView
+@interface MDKNetworkKeyValueSectionView : UIView
+
+- (instancetype)initWithTitle:(NSString *)title
+                         rows:(NSArray<NSDictionary<NSString *, NSString *> *> *)rows
+                  copyContent:(NSString *)copyContent
+            initiallyExpanded:(BOOL)initiallyExpanded;
+
+@end
+
+
+@interface MDKNetworkKeyValueSectionView ()
+
+@property(nonatomic, copy) NSString *contentToCopy;
+@property(nonatomic, strong) UIStackView *rowsStack;
+@property(nonatomic, strong) UIView *divider;
+@property(nonatomic, strong) UIImageView *chevronView;
+@property(nonatomic, strong) UIControl *toggleControl;
+@property(nonatomic, assign) BOOL expanded;
+
+@end
+
+
+@implementation MDKNetworkKeyValueSectionView
+
+- (instancetype)initWithTitle:(NSString *)title
+                         rows:(NSArray<NSDictionary<NSString *, NSString *> *> *)rows
+                  copyContent:(NSString *)copyContent
+            initiallyExpanded:(BOOL)initiallyExpanded {
+  self = [super initWithFrame:CGRectZero];
+  if (!self) {
+    return nil;
+  }
+  self.translatesAutoresizingMaskIntoConstraints = NO;
+  self.contentToCopy = copyContent;
+  MDKStyleCard(self, 14.0);
+
+  UILabel *titleLabel = [[UILabel alloc] init];
+  titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  titleLabel.adjustsFontForContentSizeCategory = YES;
+  titleLabel.textColor = MDKTextColor();
+  titleLabel.text = title;
+
+  UILabel *countLabel = [[UILabel alloc] init];
+  countLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2];
+  countLabel.adjustsFontForContentSizeCategory = YES;
+  countLabel.textColor = MDKMutedTextColor();
+  countLabel.text = rows.count == 1
+                        ? @"1 field"
+                        : [NSString stringWithFormat:@"%lu fields",
+                                                    (unsigned long)rows.count];
+
+  UIStackView *titleStack =
+      [[UIStackView alloc] initWithArrangedSubviews:@[titleLabel, countLabel]];
+  titleStack.axis = UILayoutConstraintAxisVertical;
+  titleStack.spacing = 2.0;
+
+  UIButton *copyButton = MDKIconButton(@"doc.on.doc", [NSString
+      stringWithFormat:@"Copy %@", title.lowercaseString]);
+  copyButton.backgroundColor = UIColor.clearColor;
+  copyButton.hidden = copyContent.length == 0;
+  [copyButton addTarget:self
+                 action:@selector(copyContentToPasteboard)
+       forControlEvents:UIControlEventTouchUpInside];
+
+  _chevronView =
+      [[UIImageView alloc] initWithImage:MDKSymbol(@"chevron.right", 13.0)];
+  _chevronView.tintColor = MDKMutedTextColor();
+  [_chevronView setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                forAxis:UILayoutConstraintAxisHorizontal];
+
+  UIStackView *toggleHeading = [[UIStackView alloc]
+      initWithArrangedSubviews:@[titleStack, _chevronView]];
+  toggleHeading.translatesAutoresizingMaskIntoConstraints = NO;
+  toggleHeading.axis = UILayoutConstraintAxisHorizontal;
+  toggleHeading.alignment = UIStackViewAlignmentCenter;
+  toggleHeading.spacing = 6.0;
+  toggleHeading.userInteractionEnabled = NO;
+
+  _toggleControl = [[UIControl alloc] init];
+  _toggleControl.translatesAutoresizingMaskIntoConstraints = NO;
+  _toggleControl.accessibilityLabel = title;
+  _toggleControl.accessibilityIdentifier = [NSString
+      stringWithFormat:@"mobileDiagnostics.network.detail.section.%@", title];
+  _toggleControl.accessibilityTraits = UIAccessibilityTraitButton;
+  [_toggleControl addTarget:self
+                     action:@selector(toggleExpanded)
+           forControlEvents:UIControlEventTouchUpInside];
+  [_toggleControl addTarget:self
+                     action:@selector(highlightHeader)
+           forControlEvents:UIControlEventTouchDown | UIControlEventTouchDragEnter];
+  [_toggleControl addTarget:self
+                     action:@selector(unhighlightHeader)
+           forControlEvents:UIControlEventTouchUpInside |
+                            UIControlEventTouchUpOutside |
+                            UIControlEventTouchCancel |
+                            UIControlEventTouchDragExit];
+  [_toggleControl addSubview:toggleHeading];
+  [NSLayoutConstraint activateConstraints:@[
+    [toggleHeading.topAnchor constraintEqualToAnchor:_toggleControl.topAnchor],
+    [toggleHeading.leadingAnchor constraintEqualToAnchor:_toggleControl.leadingAnchor],
+    [toggleHeading.trailingAnchor constraintEqualToAnchor:_toggleControl.trailingAnchor],
+    [toggleHeading.bottomAnchor constraintEqualToAnchor:_toggleControl.bottomAnchor],
+    [_toggleControl.heightAnchor constraintGreaterThanOrEqualToConstant:44.0],
+    [_chevronView.widthAnchor constraintEqualToConstant:16.0],
+  ]];
+
+  UIStackView *heading = [[UIStackView alloc]
+      initWithArrangedSubviews:@[_toggleControl, copyButton]];
+  heading.axis = UILayoutConstraintAxisHorizontal;
+  heading.alignment = UIStackViewAlignmentCenter;
+  heading.spacing = 6.0;
+
+  _divider = [[UIView alloc] init];
+  _divider.backgroundColor = MDKBorderColor();
+  [_divider.heightAnchor
+      constraintEqualToConstant:1.0 / UIScreen.mainScreen.scale]
+      .active = YES;
+
+  _rowsStack = [[UIStackView alloc] init];
+  _rowsStack.axis = UILayoutConstraintAxisVertical;
+  _rowsStack.spacing = 0.0;
+  if (rows.count == 0) {
+    UILabel *emptyLabel = [[UILabel alloc] init];
+    emptyLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    emptyLabel.adjustsFontForContentSizeCategory = YES;
+    emptyLabel.textColor = MDKMutedTextColor();
+    emptyLabel.text = @"No fields";
+    [_rowsStack addArrangedSubview:emptyLabel];
+  }
+  [rows enumerateObjectsUsingBlock:^(
+            NSDictionary<NSString *, NSString *> *row, NSUInteger index,
+            BOOL *stop) {
+    (void)stop;
+    UILabel *nameLabel = [[UILabel alloc] init];
+    nameLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+    nameLabel.adjustsFontForContentSizeCategory = YES;
+    nameLabel.textColor = MDKCodeKeyColor();
+    nameLabel.numberOfLines = 0;
+    nameLabel.text = row[@"name"];
+    [nameLabel.widthAnchor constraintEqualToConstant:104.0].active = YES;
+    [nameLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                               forAxis:UILayoutConstraintAxisHorizontal];
+
+    UILabel *valueLabel = [[UILabel alloc] init];
+    valueLabel.font = [UIFont monospacedSystemFontOfSize:12.0
+                                                   weight:UIFontWeightRegular];
+    valueLabel.adjustsFontForContentSizeCategory = YES;
+    valueLabel.textColor = MDKSecondaryTextColor();
+    valueLabel.numberOfLines = 0;
+    valueLabel.lineBreakMode = NSLineBreakByCharWrapping;
+    valueLabel.text = row[@"value"];
+    valueLabel.accessibilityLabel = [NSString
+        stringWithFormat:@"%@: %@", row[@"name"] ?: @"",
+                                     row[@"value"] ?: @""];
+
+    UIStackView *rowStack =
+        [[UIStackView alloc] initWithArrangedSubviews:@[nameLabel, valueLabel]];
+    rowStack.axis = UILayoutConstraintAxisHorizontal;
+    rowStack.alignment = UIStackViewAlignmentTop;
+    rowStack.spacing = 10.0;
+    rowStack.layoutMargins = UIEdgeInsetsMake(11.0, 0.0, 11.0, 0.0);
+    rowStack.layoutMarginsRelativeArrangement = YES;
+    [_rowsStack addArrangedSubview:rowStack];
+
+    if (index + 1 < rows.count) {
+      UIView *rowDivider = [[UIView alloc] init];
+      rowDivider.backgroundColor = MDKBorderColor();
+      [rowDivider.heightAnchor
+          constraintEqualToConstant:1.0 / UIScreen.mainScreen.scale]
+          .active = YES;
+      [_rowsStack addArrangedSubview:rowDivider];
+    }
+  }];
+
+  UIStackView *stack = [[UIStackView alloc]
+      initWithArrangedSubviews:@[heading, _divider, _rowsStack]];
+  stack.translatesAutoresizingMaskIntoConstraints = NO;
+  stack.axis = UILayoutConstraintAxisVertical;
+  stack.spacing = 0.0;
+  [self addSubview:stack];
+
+  [NSLayoutConstraint activateConstraints:@[
+    [stack.topAnchor constraintEqualToAnchor:self.topAnchor constant:8.0],
+    [stack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0],
+    [stack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14.0],
+    [stack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-8.0],
+  ]];
+  [self setExpanded:initiallyExpanded animated:NO];
+  return self;
+}
+
+- (void)toggleExpanded {
+  [self setExpanded:!self.expanded animated:YES];
+}
+
+- (void)highlightHeader {
+  self.toggleControl.alpha = 0.62;
+}
+
+- (void)unhighlightHeader {
+  if (UIAccessibilityIsReduceMotionEnabled()) {
+    self.toggleControl.alpha = 1.0;
+    return;
+  }
+  [UIView animateWithDuration:0.1 animations:^{
+    self.toggleControl.alpha = 1.0;
+  }];
+}
+
+- (void)setExpanded:(BOOL)expanded animated:(BOOL)animated {
+  self.expanded = expanded;
+  self.toggleControl.accessibilityValue = expanded ? @"Expanded" : @"Collapsed";
+  self.rowsStack.hidden = !expanded;
+  self.divider.hidden = !expanded;
+  void (^updates)(void) = ^{
+    self.chevronView.transform = expanded
+                                     ? CGAffineTransformMakeRotation((CGFloat)M_PI_2)
+                                     : CGAffineTransformIdentity;
+    [self.superview layoutIfNeeded];
+  };
+  if (animated && !UIAccessibilityIsReduceMotionEnabled()) {
+    [UIView animateWithDuration:0.18 animations:updates];
+  } else {
+    updates();
+  }
+}
+
+- (void)copyContentToPasteboard {
+  if (self.contentToCopy.length == 0) {
+    return;
+  }
+  UIPasteboard.generalPasteboard.string = self.contentToCopy;
+  UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
+                                  @"Copied");
+}
+
+@end
+
+@interface MDKNetworkBodySectionView : UIView
 
 - (instancetype)initWithTitle:(NSString *)title
                displayContent:(NSString *)displayContent
@@ -476,14 +885,14 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
 @end
 
 
-@interface MDKNetworkDetailSectionView ()
+@interface MDKNetworkBodySectionView ()
 
 @property(nonatomic, copy) NSString *contentToCopy;
 
 @end
 
 
-@implementation MDKNetworkDetailSectionView
+@implementation MDKNetworkBodySectionView
 
 - (instancetype)initWithTitle:(NSString *)title
                displayContent:(NSString *)displayContent
@@ -497,10 +906,28 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   MDKStyleCard(self, 14.0);
 
   UILabel *titleLabel = [[UILabel alloc] init];
-  titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+  titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
   titleLabel.adjustsFontForContentSizeCategory = YES;
   titleLabel.textColor = MDKTextColor();
   titleLabel.text = title;
+
+  NSData *bodyData = [displayContent dataUsingEncoding:NSUTF8StringEncoding];
+  id bodyObject = bodyData.length > 0
+                      ? [NSJSONSerialization JSONObjectWithData:bodyData
+                                                        options:0
+                                                          error:nil]
+                      : nil;
+  BOOL isJSON = bodyObject && [NSJSONSerialization isValidJSONObject:bodyObject];
+  UILabel *formatLabel = [[UILabel alloc] init];
+  formatLabel.font = [UIFont monospacedSystemFontOfSize:10.0
+                                                  weight:UIFontWeightSemibold];
+  formatLabel.textColor = MDKMutedTextColor();
+  formatLabel.backgroundColor = MDKRaisedColor();
+  formatLabel.textAlignment = NSTextAlignmentCenter;
+  formatLabel.layer.cornerRadius = 5.0;
+  formatLabel.layer.masksToBounds = YES;
+  formatLabel.text = isJSON ? @" JSON " : @" TEXT ";
+  [formatLabel.heightAnchor constraintGreaterThanOrEqualToConstant:22.0].active = YES;
 
   UIButton *copyButton = MDKIconButton(@"doc.on.doc", [NSString
       stringWithFormat:@"Copy %@", title.lowercaseString]);
@@ -510,37 +937,40 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
                  action:@selector(copyContentToPasteboard)
        forControlEvents:UIControlEventTouchUpInside];
 
-  UIStackView *heading =
-      [[UIStackView alloc] initWithArrangedSubviews:@[titleLabel, copyButton]];
+  UIStackView *heading = [[UIStackView alloc]
+      initWithArrangedSubviews:@[titleLabel, formatLabel, copyButton]];
   heading.axis = UILayoutConstraintAxisHorizontal;
   heading.alignment = UIStackViewAlignmentCenter;
+  heading.spacing = 8.0;
 
   UITextView *contentView = [[UITextView alloc] init];
   contentView.translatesAutoresizingMaskIntoConstraints = NO;
-  contentView.backgroundColor = UIColor.clearColor;
+  contentView.backgroundColor = MDKRaisedColor();
   contentView.editable = NO;
   contentView.scrollEnabled = NO;
   contentView.selectable = YES;
-  contentView.textContainerInset = UIEdgeInsetsZero;
+  contentView.textContainerInset = UIEdgeInsetsMake(12.0, 10.0, 12.0, 10.0);
   contentView.textContainer.lineFragmentPadding = 0.0;
-  contentView.font = [UIFont monospacedSystemFontOfSize:12.0
-                                                 weight:UIFontWeightRegular];
   contentView.adjustsFontForContentSizeCategory = YES;
-  contentView.textColor = MDKSecondaryTextColor();
-  contentView.text = displayContent;
+  contentView.attributedText = MDKAttributedBody(displayContent);
+  contentView.layer.cornerRadius = 10.0;
+  contentView.accessibilityLabel = title;
+  contentView.accessibilityIdentifier = [NSString
+      stringWithFormat:@"mobileDiagnostics.network.detail.body.%@", title];
+  contentView.accessibilityValue = displayContent;
+  [contentView.heightAnchor constraintGreaterThanOrEqualToConstant:72.0].active = YES;
 
   UIStackView *stack =
       [[UIStackView alloc] initWithArrangedSubviews:@[heading, contentView]];
   stack.translatesAutoresizingMaskIntoConstraints = NO;
   stack.axis = UILayoutConstraintAxisVertical;
-  stack.spacing = 10.0;
+  stack.spacing = 8.0;
   [self addSubview:stack];
-
   [NSLayoutConstraint activateConstraints:@[
-    [stack.topAnchor constraintEqualToAnchor:self.topAnchor constant:13.0],
-    [stack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:13.0],
-    [stack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-13.0],
-    [stack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-13.0],
+    [stack.topAnchor constraintEqualToAnchor:self.topAnchor constant:8.0],
+    [stack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0],
+    [stack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14.0],
+    [stack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-14.0],
   ]];
   return self;
 }
@@ -751,41 +1181,88 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
     [view removeFromSuperview];
   }
 
-  NSArray<NSDictionary<NSString *, NSString *> *> *sections;
   if (self.segmentControl.selectedSegmentIndex == 0) {
     NSString *url = self.model.url ?: @"";
-    NSString *headers = MDKHeadersText(self.model.request.allHTTPHeaderFields);
-    NSString *body = self.model.requestBody ?: @"";
-    sections = @[
-      @{ @"title" : @"Full URL",
-         @"display" : url.length > 0 ? url : @"No URL",
-         @"copy" : url },
-      @{ @"title" : @"Headers", @"display" : headers, @"copy" : headers },
-      @{ @"title" : @"Body",
-         @"display" : MDKPrettyBody(body),
-         @"copy" : body },
+    NSArray<NSDictionary<NSString *, NSString *> *> *generalRows = @[
+      @{ @"name" : @"Request URL",
+         @"value" : url.length > 0 ? url : @"—" },
+      @{ @"name" : @"Method", @"value" : MDKMethod(self.model) },
+      @{ @"name" : @"Resource",
+         @"value" : MDKResourceTypeTitle(MDKResourceTypeForModel(self.model)) },
+      @{ @"name" : @"Started", @"value" : MDKStartTime(self.model) },
+      @{ @"name" : @"Duration", @"value" : MDKDuration(self.model) },
     ];
+    MDKNetworkKeyValueSectionView *general =
+        [[MDKNetworkKeyValueSectionView alloc] initWithTitle:@"General"
+                                                       rows:generalRows
+                                                copyContent:MDKRowsText(generalRows)
+                                          initiallyExpanded:YES];
+    [self.sectionsStack addArrangedSubview:general];
+
+    NSDictionary *requestHeaders = self.model.request.allHTTPHeaderFields ?: @{};
+    NSArray<NSDictionary<NSString *, NSString *> *> *headerRows =
+        MDKHeaderRows(requestHeaders);
+    MDKNetworkKeyValueSectionView *headers =
+        [[MDKNetworkKeyValueSectionView alloc]
+            initWithTitle:@"Request Headers"
+                     rows:headerRows
+              copyContent:requestHeaders.count > 0 ? MDKHeadersText(requestHeaders)
+                                                     : @""
+        initiallyExpanded:NO];
+    [self.sectionsStack addArrangedSubview:headers];
+
+    NSString *body = self.model.requestBody ?: @"";
+    MDKNetworkBodySectionView *payload =
+        [[MDKNetworkBodySectionView alloc] initWithTitle:@"Payload"
+                                          displayContent:body
+                                             copyContent:body];
+    [self.sectionsStack addArrangedSubview:payload];
   } else {
     NSDictionary *responseHeaders = @{};
     if ([self.model.response isKindOfClass:NSHTTPURLResponse.class]) {
       responseHeaders = ((NSHTTPURLResponse *)self.model.response).allHeaderFields;
     }
-    NSString *headers = MDKHeadersText(responseHeaders);
-    NSString *body = self.model.responseBody ?: @"";
-    sections = @[
-      @{ @"title" : @"Headers", @"display" : headers, @"copy" : headers },
-      @{ @"title" : @"Body",
-         @"display" : MDKResponseBodyDisplay(self.model),
-         @"copy" : body },
-    ];
-  }
 
-  for (NSDictionary<NSString *, NSString *> *section in sections) {
-    MDKNetworkDetailSectionView *sectionView =
-        [[MDKNetworkDetailSectionView alloc] initWithTitle:section[@"title"]
-                                           displayContent:section[@"display"]
-                                              copyContent:section[@"copy"]];
-    [self.sectionsStack addArrangedSubview:sectionView];
+    NSString *mimeType = self.model.mineType.length > 0
+                             ? self.model.mineType
+                             : self.model.response.MIMEType;
+    NSArray<NSDictionary<NSString *, NSString *> *> *generalRows = @[
+      @{ @"name" : @"Status", @"value" : MDKStatus(self.model) },
+      @{ @"name" : @"Content Type",
+         @"value" : mimeType.length > 0 ? mimeType : @"—" },
+      @{ @"name" : @"Resource",
+         @"value" : MDKResourceTypeTitle(MDKResourceTypeForModel(self.model)) },
+      @{ @"name" : @"Transferred",
+         @"value" : [NSString
+             stringWithFormat:@"↑ %@  ·  ↓ %@",
+                              MDKFormatBytes(self.model.uploadFlow.doubleValue),
+                              MDKFormatBytes(self.model.downFlow.doubleValue)] },
+      @{ @"name" : @"Duration", @"value" : MDKDuration(self.model) },
+    ];
+    MDKNetworkKeyValueSectionView *general =
+        [[MDKNetworkKeyValueSectionView alloc] initWithTitle:@"General"
+                                                       rows:generalRows
+                                                copyContent:MDKRowsText(generalRows)
+                                          initiallyExpanded:YES];
+    [self.sectionsStack addArrangedSubview:general];
+
+    NSArray<NSDictionary<NSString *, NSString *> *> *headerRows =
+        MDKHeaderRows(responseHeaders);
+    MDKNetworkKeyValueSectionView *headers =
+        [[MDKNetworkKeyValueSectionView alloc]
+            initWithTitle:@"Response Headers"
+                     rows:headerRows
+              copyContent:responseHeaders.count > 0 ? MDKHeadersText(responseHeaders)
+                                                      : @""
+        initiallyExpanded:NO];
+    [self.sectionsStack addArrangedSubview:headers];
+
+    NSString *body = self.model.responseBody ?: @"";
+    MDKNetworkBodySectionView *responseBody =
+        [[MDKNetworkBodySectionView alloc] initWithTitle:@"Response Body"
+                                          displayContent:MDKResponseBodyDisplay(self.model)
+                                             copyContent:body];
+    [self.sectionsStack addArrangedSubview:responseBody];
   }
 }
 
@@ -902,19 +1379,45 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
          forControlEvents:UIControlEventEditingChanged];
   [_searchField.heightAnchor constraintGreaterThanOrEqualToConstant:48.0].active = YES;
 
-  _filterControl = [[UISegmentedControl alloc]
-      initWithItems:@[ @"All requests", @"Errors" ]];
+  _filterControl = [[UISegmentedControl alloc] initWithItems:@[ @"All", @"Fetch", @"Image", @"Media", @"Other", @"Errors" ]];
+  _filterControl.translatesAutoresizingMaskIntoConstraints = NO;
   _filterControl.selectedSegmentIndex = 0;
   _filterControl.selectedSegmentTintColor = MDKSurfaceColor();
   _filterControl.backgroundColor = MDKRaisedColor();
+  [_filterControl setWidth:56.0 forSegmentAtIndex:0];
+  for (NSInteger index = 1; index < _filterControl.numberOfSegments; index++) {
+    [_filterControl setWidth:72.0 forSegmentAtIndex:index];
+  }
   _filterControl.accessibilityIdentifier = @"mobileDiagnostics.network.filterControl";
+  _filterControl.accessibilityLabel = @"Request type";
   [_filterControl addTarget:self
                      action:@selector(applyFilter)
            forControlEvents:UIControlEventValueChanged];
-  [_filterControl.heightAnchor constraintGreaterThanOrEqualToConstant:40.0].active = YES;
+
+  UIScrollView *filterScrollView = [[UIScrollView alloc] init];
+  filterScrollView.translatesAutoresizingMaskIntoConstraints = NO;
+  filterScrollView.showsHorizontalScrollIndicator = NO;
+  filterScrollView.showsVerticalScrollIndicator = NO;
+  filterScrollView.alwaysBounceHorizontal = YES;
+  filterScrollView.directionalLockEnabled = YES;
+  [filterScrollView addSubview:_filterControl];
+  [NSLayoutConstraint activateConstraints:@[
+    [_filterControl.topAnchor
+        constraintEqualToAnchor:filterScrollView.contentLayoutGuide.topAnchor],
+    [_filterControl.leadingAnchor
+        constraintEqualToAnchor:filterScrollView.contentLayoutGuide.leadingAnchor],
+    [_filterControl.trailingAnchor
+        constraintEqualToAnchor:filterScrollView.contentLayoutGuide.trailingAnchor],
+    [_filterControl.bottomAnchor
+        constraintEqualToAnchor:filterScrollView.contentLayoutGuide.bottomAnchor],
+    [_filterControl.heightAnchor
+        constraintEqualToAnchor:filterScrollView.frameLayoutGuide.heightAnchor],
+    [_filterControl.widthAnchor constraintEqualToConstant:416.0],
+    [filterScrollView.heightAnchor constraintEqualToConstant:40.0],
+  ]];
 
   UIStackView *controls = [[UIStackView alloc]
-      initWithArrangedSubviews:@[header, summary, _searchField, _filterControl]];
+      initWithArrangedSubviews:@[header, summary, _searchField, filterScrollView]];
   controls.translatesAutoresizingMaskIntoConstraints = NO;
   controls.axis = UILayoutConstraintAxisVertical;
   controls.spacing = 10.0;
@@ -1051,16 +1554,26 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   NSString *query = [self.searchField.text
       stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
                         .lowercaseString;
-  BOOL errorsOnly = self.filterControl.selectedSegmentIndex == 1;
+  NSInteger selectedFilter = self.filterControl.selectedSegmentIndex;
+  BOOL errorsOnly = selectedFilter == 5;
   NSMutableArray<DoraemonNetFlowHttpModel *> *filtered = [NSMutableArray array];
   for (DoraemonNetFlowHttpModel *model in self.allRequests) {
     if (errorsOnly && !MDKIsError(model)) {
       continue;
     }
+    if (selectedFilter >= MDKNetworkResourceTypeFetch &&
+        selectedFilter <= MDKNetworkResourceTypeOther &&
+        MDKResourceTypeForModel(model) !=
+            (MDKNetworkResourceType)selectedFilter) {
+      continue;
+    }
     if (query.length > 0) {
+      NSString *resourceType =
+          MDKResourceTypeTitle(MDKResourceTypeForModel(model));
       NSString *haystack = [NSString
-          stringWithFormat:@"%@ %@ %@ %@", model.url ?: @"", MDKHost(model),
-                           MDKMethod(model), MDKStatus(model)]
+          stringWithFormat:@"%@ %@ %@ %@ %@ %@", model.url ?: @"",
+                           MDKHost(model), MDKMethod(model), MDKStatus(model),
+                           model.mineType ?: @"", resourceType]
                                 .lowercaseString;
       if ([haystack rangeOfString:query].location == NSNotFound) {
         continue;
@@ -1100,8 +1613,21 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   title.adjustsFontForContentSizeCategory = YES;
   title.textColor = MDKSecondaryTextColor();
   title.textAlignment = NSTextAlignmentCenter;
-  title.text = self.allRequests.count == 0 ? @"No requests captured"
-                                           : @"No matching requests";
+  NSString *query = [self.searchField.text
+      stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  NSInteger selectedFilter = self.filterControl.selectedSegmentIndex;
+  if (self.allRequests.count == 0) {
+    title.text = @"No requests captured";
+  } else if (query.length > 0) {
+    title.text = @"No matching requests";
+  } else if (selectedFilter == 5) {
+    title.text = @"No errors captured";
+  } else {
+    NSString *filterTitle = [self.filterControl
+        titleForSegmentAtIndex:selectedFilter];
+    title.text = [NSString stringWithFormat:@"No %@ requests",
+                                            filterTitle ?: @"matching"];
+  }
 
   UILabel *body = [[UILabel alloc] init];
   body.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
@@ -1111,7 +1637,7 @@ static BOOL MDKIsError(DoraemonNetFlowHttpModel *model) {
   body.textAlignment = NSTextAlignmentCenter;
   body.text = self.allRequests.count == 0
                   ? @"Turn on Capture, use the app, then pull to refresh."
-                  : @"Try a different search or switch back to All requests.";
+                  : @"Try a different search or switch back to All.";
 
   UIStackView *stack =
       [[UIStackView alloc] initWithArrangedSubviews:@[title, body]];
