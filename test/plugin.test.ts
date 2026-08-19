@@ -23,6 +23,34 @@ class MainApplication : Application(), ReactApplication {
 }
 `
 
+const PREVIOUSLY_GENERATED_MAIN_APPLICATION = `
+package com.example.app
+
+import android.app.Application
+import com.didichuxing.doraemonkit.DoKit
+import com.didichuxing.doraemonkit.aop.DokitPluginConfig
+import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor
+import com.facebook.react.ReactApplication
+import com.facebook.react.modules.network.OkHttpClientProvider
+
+class MainApplication : Application(), ReactApplication {
+  override fun onCreate() {
+    super.onCreate()
+    DokitPluginConfig.SWITCH_DOKIT_PLUGIN = true
+    DokitPluginConfig.SWITCH_NETWORK = true
+    DoKit.Builder(this)
+      .customKits(MobileDiagnosticsDoKit.kits())
+      .disableUpload()
+      .build()
+    OkHttpClientProvider.setOkHttpClientFactory {
+      OkHttpClientProvider.createClientBuilder(this)
+        .addInterceptor(DokitCapInterceptor())
+        .build()
+    }
+  }
+}
+`
+
 describe('DoKit Expo config plugin', () => {
   it('exports the conventional Expo plugin entry when package exports are enabled', () => {
     const packageJson = require('../package.json')
@@ -54,8 +82,22 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
+    expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
+  })
+
+  it('upgrades an existing generated application to start network capture', () => {
+    const { addDoKitToMainApplication } = require('../plugin/withDoKit.js')
+
+    const application = addDoKitToMainApplication(
+      PREVIOUSLY_GENERATED_MAIN_APPLICATION
+    )
+
+    expect(application).toContain(
+      'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
+    )
+    expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
   })
 
   it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {

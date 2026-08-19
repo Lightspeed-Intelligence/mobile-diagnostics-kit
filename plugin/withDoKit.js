@@ -12,11 +12,13 @@ const DOKIT_DEPENDENCIES = [
 const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.DoKit',
   'import com.didichuxing.doraemonkit.aop.DokitPluginConfig',
+  'import com.didichuxing.doraemonkit.kit.network.NetworkManager',
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
+const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
 const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
@@ -59,10 +61,11 @@ function addImport(contents, importLine) {
 }
 
 function addDoKitToMainApplication(contents) {
-  if (contents.includes(DOKIT_INIT_MARKER)) return contents
-
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
   const next = DOKIT_IMPORTS.reduce(addImport, contents)
+  if (next.includes(DOKIT_INIT_MARKER)) {
+    return addNetworkMonitorStart(next, eol)
+  }
   if (next.includes(LEGACY_DOKIT_INIT)) {
     const legacyLine = new RegExp(
       `^(\\s*)${LEGACY_DOKIT_INIT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
@@ -101,7 +104,30 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
+    `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
+    `${indent}${NETWORK_MONITOR_START}`,
   ].join(eol)
+}
+
+function addNetworkMonitorStart(contents, eol) {
+  if (contents.includes(NETWORK_MONITOR_START)) return contents
+
+  const markerIndex = contents.indexOf(DOKIT_INIT_MARKER)
+  const builderIndex = contents.lastIndexOf('DoKit.Builder(this)', markerIndex)
+  const buildIndex = contents.indexOf('.build()', markerIndex)
+  if (builderIndex < 0 || buildIndex < 0) {
+    throw new Error('withDoKit: existing DoKit initialization is unsupported')
+  }
+
+  const builderLineStart = contents.lastIndexOf(eol, builderIndex) + eol.length
+  const indent = contents.slice(builderLineStart, builderIndex)
+  const buildLineEnd = contents.indexOf(eol, buildIndex)
+  const insertAt = buildLineEnd < 0 ? contents.length : buildLineEnd
+  const start = [
+    `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
+    `${indent}${NETWORK_MONITOR_START}`,
+  ].join(eol)
+  return `${contents.slice(0, insertAt)}${eol}${start}${contents.slice(insertAt)}`
 }
 
 function renderMobileDiagnosticsDoKitSource(packageName) {
