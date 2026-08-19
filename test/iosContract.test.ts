@@ -16,6 +16,14 @@ describe('iOS DoKit wrapper', () => {
     )
   })
 
+  it('imports the DoKit cache manager used by the network replacement', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+
+    expect(source).toContain(
+      '#import <DoraemonKit/DoraemonCacheManager.h>'
+    )
+  })
+
   it('disables DoKit telemetry before installing the on-device entry', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
     const disableUsageUpload = source.indexOf('DoraemonStatisticsUtil')

@@ -1,6 +1,7 @@
 #import "MobileDiagnostics.h"
 
 #import <DoraemonKit/DoraemonKit.h>
+#import <DoraemonKit/DoraemonCacheManager.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
 
