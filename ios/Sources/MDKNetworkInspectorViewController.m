@@ -281,6 +281,42 @@ static NSString *MDKHeadersText(NSDictionary *headers) {
   return rows.count > 0 ? MDKRowsText(rows) : @"No headers";
 }
 
+static NSString *MDKShellQuotedString(NSString *value) {
+  NSString *escaped = [(value ?: @"")
+      stringByReplacingOccurrencesOfString:@"'"
+                                withString:@"'\\''"];
+  return [NSString stringWithFormat:@"'%@'", escaped];
+}
+
+static NSString *MDKCurlCommandForModel(DoraemonNetFlowHttpModel *model) {
+  NSString *url = model.url.length > 0 ? model.url
+                                        : model.request.URL.absoluteString;
+  NSString *method = model.request.HTTPMethod.length > 0
+                         ? model.request.HTTPMethod.uppercaseString
+                         : MDKMethod(model);
+  NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:
+      [NSString stringWithFormat:@"curl %@", MDKShellQuotedString(url)]];
+  if (method.length > 0) {
+    [parts addObject:[NSString stringWithFormat:@"  -X %@",
+                                                MDKShellQuotedString(method)]];
+  }
+
+  NSDictionary *headers = model.request.allHTTPHeaderFields ?: @{};
+  for (NSDictionary<NSString *, NSString *> *row in MDKHeaderRows(headers)) {
+    NSString *header = [NSString stringWithFormat:@"%@: %@", row[@"name"] ?: @"",
+                                                   row[@"value"] ?: @""];
+    [parts addObject:[NSString stringWithFormat:@"  -H %@",
+                                                MDKShellQuotedString(header)]];
+  }
+
+  NSString *body = model.requestBody ?: @"";
+  if (body.length > 0) {
+    [parts addObject:[NSString stringWithFormat:@"  --data-raw %@",
+                                                MDKShellQuotedString(body)]];
+  }
+  return [parts componentsJoinedByString:@" \\\n"];
+}
+
 static NSString *MDKPrettyBody(NSString *body) {
   if (body.length == 0) {
     return @"No body";
@@ -1132,9 +1168,31 @@ static NSString *MDKResourceTypeTitle(MDKNetworkResourceType type) {
   status.textColor = MDKStatusColor(self.model.statusCode);
   status.text = MDKStatus(self.model);
 
+  UIButton *copyCurlButton = [UIButton buttonWithType:UIButtonTypeSystem];
+  copyCurlButton.translatesAutoresizingMaskIntoConstraints = NO;
+  copyCurlButton.backgroundColor = MDKRaisedColor();
+  copyCurlButton.tintColor = MDKSecondaryTextColor();
+  copyCurlButton.titleLabel.font =
+      [UIFont monospacedSystemFontOfSize:11.0 weight:UIFontWeightSemibold];
+  [copyCurlButton setImage:MDKSymbol(@"terminal", 13.0)
+                  forState:UIControlStateNormal];
+  [copyCurlButton setTitle:@"  Copy cURL" forState:UIControlStateNormal];
+  copyCurlButton.layer.cornerRadius = 8.0;
+  copyCurlButton.accessibilityLabel = @"Copy request as cURL";
+  copyCurlButton.accessibilityIdentifier =
+      @"mobileDiagnostics.network.detail.copyCurlButton";
+  [copyCurlButton addTarget:self
+                     action:@selector(copyRequestAsCurl)
+           forControlEvents:UIControlEventTouchUpInside];
+  [NSLayoutConstraint activateConstraints:@[
+    [copyCurlButton.widthAnchor constraintGreaterThanOrEqualToConstant:104.0],
+    [copyCurlButton.heightAnchor constraintGreaterThanOrEqualToConstant:44.0],
+  ]];
+
   UIView *topSpacer = [[UIView alloc] init];
   UIStackView *top =
-      [[UIStackView alloc] initWithArrangedSubviews:@[method, status, topSpacer]];
+      [[UIStackView alloc]
+          initWithArrangedSubviews:@[method, status, topSpacer, copyCurlButton]];
   top.axis = UILayoutConstraintAxisHorizontal;
   top.alignment = UIStackViewAlignmentCenter;
   top.spacing = 9.0;
@@ -1268,6 +1326,12 @@ static NSString *MDKResourceTypeTitle(MDKNetworkResourceType type) {
 
 - (void)goBack {
   [self.navigationController popViewControllerAnimated:YES];
+}
+
+- (void)copyRequestAsCurl {
+  UIPasteboard.generalPasteboard.string = MDKCurlCommandForModel(self.model);
+  UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
+                                  @"cURL command copied");
 }
 
 @end

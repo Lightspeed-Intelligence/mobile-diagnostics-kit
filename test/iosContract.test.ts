@@ -229,4 +229,26 @@ describe('iOS DoKit wrapper', () => {
     expect(networkSource).not.toContain('MDKRedact')
     expect(networkSource).toContain('copyContent:body')
   })
+
+  it('copies the full captured request as a shell-safe cURL command', () => {
+    const networkSource = read(
+      'ios/Sources/MDKNetworkInspectorViewController.m'
+    )
+
+    expect(networkSource).toContain('MDKShellQuotedString')
+    expect(networkSource).toContain('MDKCurlCommandForModel')
+    expect(networkSource).toContain('stringByReplacingOccurrencesOfString:@"\'"')
+    expect(networkSource).toContain('@"  -X %@"')
+    expect(networkSource).toContain('@"  -H %@"')
+    expect(networkSource).toContain('@"  --data-raw %@"')
+    expect(networkSource).toContain('model.request.allHTTPHeaderFields')
+    expect(networkSource).toContain('model.requestBody')
+    expect(networkSource).toContain(
+      '@"mobileDiagnostics.network.detail.copyCurlButton"'
+    )
+    expect(networkSource).toContain(
+      'UIPasteboard.generalPasteboard.string = MDKCurlCommandForModel(self.model);'
+    )
+    expect(networkSource).not.toContain('MDKCurlRedact')
+  })
 })
