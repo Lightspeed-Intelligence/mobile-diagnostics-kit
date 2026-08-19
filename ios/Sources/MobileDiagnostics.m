@@ -104,7 +104,7 @@ static void MDKReplaceLegacyNetworkPlugin(DoraemonManager *manager) {
       }
     }];
     [manager addPluginWithTitle:@"Expo Update"
-                           icon:@"doraemon_app_setting"
+                           icon:@"doraemon_file_sync"
                            desc:@"Check and apply a compatible update"
                      pluginName:@"MDKExpoUpdatePlugin"
                         atModule:@"Application Tools"

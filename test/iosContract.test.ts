@@ -52,6 +52,8 @@ describe('iOS DoKit wrapper', () => {
     expect(registerExpoUpdate).toBeGreaterThan(registerLocalState)
     expect(installDoKit).toBeGreaterThan(registerExpoUpdate)
     expect(source).toContain('hiddenHomeWindow')
+    expect(source).toContain('icon:@"doraemon_file_sync"')
+    expect(source).not.toContain('icon:@"doraemon_app_setting"')
   })
 
   it('replaces DoKit’s legacy network page with the public diagnostics surface', () => {
