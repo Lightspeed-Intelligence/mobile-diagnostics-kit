@@ -79,9 +79,8 @@ internal object MobileDiagnosticsDoKit {
   }
 
   /**
-   * DoKit's stock main icon is a full-screen transparent system window in
-   * some Android configurations. Keep the system-window mode (RN modals can
-   * otherwise cover it) while constraining the touch target to the icon.
+   * Keep the launcher itself bounded even though DoKit's activity overlay
+   * uses a full-screen container. Only the icon content handles clicks.
    */
   internal class MobileDiagnosticsMainIconDoKitView : AbsDoKitView() {
     override fun onCreate(context: Context) = Unit
@@ -94,7 +93,7 @@ internal object MobileDiagnosticsDoKit {
       )
 
     override fun onViewCreated(view: FrameLayout) {
-      view.setOnClickListener { DoKit.showToolPanel() }
+      doKitView?.setOnClickListener { DoKit.showToolPanel() }
     }
 
     override fun initDokitViewLayoutParams(params: DoKitViewLayoutParams) {

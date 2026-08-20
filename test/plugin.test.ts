@@ -54,6 +54,7 @@ class MainApplication : Application(), ReactApplication {
       .customKits(MobileDiagnosticsDoKit.kits())
       .disableUpload()
       .build()
+    DoKitManager.IS_NORMAL_FLOAT_MODE = false
     OkHttpClientProvider.setOkHttpClientFactory {
       OkHttpClientProvider.createClientBuilder(this)
         .addInterceptor(DokitCapInterceptor())
@@ -99,13 +100,14 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(
-      application.match(/DoKitManager\.IS_NORMAL_FLOAT_MODE = false/g)
+      application.match(/DoKitManager\.IS_NORMAL_FLOAT_MODE = true/g)
     ).toHaveLength(1)
+    expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(
-      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
-    ).toBeGreaterThan(application.indexOf('.build()'))
+      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
+    ).toBeLessThan(application.indexOf('DoKit.Builder(this)'))
     expect(
-      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
+      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     ).toBeLessThan(
       application.indexOf('MobileDiagnosticsDoKit.installLifecycleRestore(this)')
     )
@@ -139,7 +141,8 @@ describe('DoKit Expo config plugin', () => {
       'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
-    expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
+    expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
+    expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
     expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
   })

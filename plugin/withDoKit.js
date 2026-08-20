@@ -20,7 +20,9 @@ const DOKIT_IMPORTS = [
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
-const DOKIT_SYSTEM_FLOAT_MODE = 'DoKitManager.IS_NORMAL_FLOAT_MODE = false'
+const DOKIT_NORMAL_FLOAT_MODE = 'DoKitManager.IS_NORMAL_FLOAT_MODE = true'
+const LEGACY_DOKIT_SYSTEM_FLOAT_MODE =
+  'DoKitManager.IS_NORMAL_FLOAT_MODE = false'
 const LIFECYCLE_RESTORE_INSTALL =
   'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
@@ -101,7 +103,7 @@ function addDoKitToMainApplication(contents) {
   const next = DOKIT_IMPORTS.reduce(addImport, contents)
   if (next.includes(DOKIT_INIT_MARKER)) {
     return addMobileDiagnosticsNetworkPackage(
-      addNetworkMonitorStart(addSystemFloatMode(next, eol), eol),
+      addNetworkMonitorStart(addNormalFloatMode(next, eol), eol),
       eol
     )
   }
@@ -160,11 +162,11 @@ function addMobileDiagnosticsNetworkPackage(contents, eol) {
 
 function renderDoKitInitialization(indent, eol) {
   return [
+    `${indent}${DOKIT_NORMAL_FLOAT_MODE}`,
     `${indent}DoKit.Builder(this)`,
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
-    `${indent}${DOKIT_SYSTEM_FLOAT_MODE}`,
     `${indent}DoKitManager.ALWAYS_SHOW_MAIN_ICON = false`,
     `${indent}${LIFECYCLE_RESTORE_INSTALL}`,
     `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
@@ -173,20 +175,25 @@ function renderDoKitInitialization(indent, eol) {
   ].join(eol)
 }
 
-function addSystemFloatMode(contents, eol) {
-  if (contents.includes(DOKIT_SYSTEM_FLOAT_MODE)) return contents
+function addNormalFloatMode(contents, eol) {
+  const legacyModeLine = new RegExp(
+    `^[\\t ]*${LEGACY_DOKIT_SYSTEM_FLOAT_MODE.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&'
+    )}\\r?\\n?`,
+    'gm'
+  )
+  const next = contents.replace(legacyModeLine, '')
+  if (next.includes(DOKIT_NORMAL_FLOAT_MODE)) return next
 
-  const markerIndex = contents.indexOf(DOKIT_INIT_MARKER)
-  const builderIndex = contents.lastIndexOf('DoKit.Builder(this)', markerIndex)
-  const buildIndex = contents.indexOf('.build()', markerIndex)
-  if (builderIndex < 0 || buildIndex < 0) {
+  const markerIndex = next.indexOf(DOKIT_INIT_MARKER)
+  const builderIndex = next.lastIndexOf('DoKit.Builder(this)', markerIndex)
+  if (builderIndex < 0) {
     throw new Error('withDoKit: existing DoKit initialization is unsupported')
   }
-  const builderLineStart = contents.lastIndexOf(eol, builderIndex) + eol.length
-  const indent = contents.slice(builderLineStart, builderIndex)
-  const buildLineEnd = contents.indexOf(eol, buildIndex)
-  const insertAt = buildLineEnd < 0 ? contents.length : buildLineEnd
-  return `${contents.slice(0, insertAt)}${eol}${indent}${DOKIT_SYSTEM_FLOAT_MODE}${contents.slice(insertAt)}`
+  const builderLineStart = next.lastIndexOf(eol, builderIndex) + eol.length
+  const indent = next.slice(builderLineStart, builderIndex)
+  return `${next.slice(0, builderLineStart)}${indent}${DOKIT_NORMAL_FLOAT_MODE}${eol}${next.slice(builderLineStart)}`
 }
 
 function addNetworkMonitorStart(contents, eol) {
