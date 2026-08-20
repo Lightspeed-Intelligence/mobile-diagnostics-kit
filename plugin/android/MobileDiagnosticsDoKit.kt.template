@@ -19,7 +19,6 @@ internal object MobileDiagnosticsDoKit {
   private const val OFFICIAL_NETWORK_KIT = "dokit_sdk_performance_ck_network"
   private const val CLEANUP_ATTEMPTS = 20
   private var lifecycleRestoreInstalled = false
-  private var launcherInitialized = false
   private var inspectorVisible = false
   private var currentActivity: Activity? = null
 
@@ -45,13 +44,13 @@ internal object MobileDiagnosticsDoKit {
         override fun onActivityResumed(activity: Activity) {
           if (inspectorVisible) return
           currentActivity = activity
-          if (!launcherInitialized) {
-            launcherInitialized = true
+          activity.window.decorView.post {
+            if (inspectorVisible || currentActivity !== activity) return@post
             DoKit.hide()
             DoKitManager.MAIN_ICON_HAS_SHOW = false
             DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
+            showLauncherIfMissing(activity)
           }
-          showLauncherIfMissing(activity)
         }
         override fun onActivityPaused(activity: Activity) = Unit
         override fun onActivityStopped(activity: Activity) = Unit

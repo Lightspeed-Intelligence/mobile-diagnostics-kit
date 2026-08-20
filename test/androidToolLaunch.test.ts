@@ -92,6 +92,7 @@ class MainApplication : Application() {
     expect(source).toContain('doKitView?.setOnClickListener')
     expect(source).toContain('DoKit.APPLICATION.resources.displayMetrics.density')
     expect(source).toContain('DoKit.hide()')
+    expect(source).toContain('activity.window.decorView.post')
     expect(source.indexOf('DoKit.hide()')).toBeLessThan(
       source.indexOf('showLauncherIfMissing(activity)')
     )
