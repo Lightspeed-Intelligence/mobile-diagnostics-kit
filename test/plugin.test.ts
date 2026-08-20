@@ -98,6 +98,17 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
+    expect(
+      application.match(/DoKitManager\.IS_NORMAL_FLOAT_MODE = false/g)
+    ).toHaveLength(1)
+    expect(
+      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
+    ).toBeGreaterThan(application.indexOf('.build()'))
+    expect(
+      application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
+    ).toBeLessThan(
+      application.indexOf('MobileDiagnosticsDoKit.installLifecycleRestore(this)')
+    )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
     expect(application).toContain('MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()')
     expect(
@@ -128,6 +139,7 @@ describe('DoKit Expo config plugin', () => {
       'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
+    expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
     expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
   })
@@ -192,6 +204,7 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('fun installLifecycleRestore(application: Application)')
     expect(source).toContain('application.registerActivityLifecycleCallbacks')
     expect(source).toContain('override fun onActivityResumed(activity: Activity)')
+    expect(source).toContain('DoKitManager.MAIN_ICON_HAS_SHOW = false')
     expect(source).toContain('DoKit.show()')
     expect(source).toContain('DestinationKit("network")')
   })

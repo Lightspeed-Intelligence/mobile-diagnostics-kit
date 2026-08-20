@@ -12,6 +12,7 @@ const DOKIT_DEPENDENCIES = [
 const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.DoKit',
   'import com.didichuxing.doraemonkit.aop.DokitPluginConfig',
+  'import com.didichuxing.doraemonkit.kit.core.DoKitManager',
   'import com.didichuxing.doraemonkit.kit.network.NetworkManager',
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
@@ -19,6 +20,7 @@ const DOKIT_IMPORTS = [
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
+const DOKIT_SYSTEM_FLOAT_MODE = 'DoKitManager.IS_NORMAL_FLOAT_MODE = false'
 const LIFECYCLE_RESTORE_INSTALL =
   'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
@@ -99,7 +101,7 @@ function addDoKitToMainApplication(contents) {
   const next = DOKIT_IMPORTS.reduce(addImport, contents)
   if (next.includes(DOKIT_INIT_MARKER)) {
     return addMobileDiagnosticsNetworkPackage(
-      addNetworkMonitorStart(next, eol),
+      addNetworkMonitorStart(addSystemFloatMode(next, eol), eol),
       eol
     )
   }
@@ -162,11 +164,28 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
+    `${indent}${DOKIT_SYSTEM_FLOAT_MODE}`,
     `${indent}${LIFECYCLE_RESTORE_INSTALL}`,
     `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
     `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
     `${indent}${NETWORK_MONITOR_START}`,
   ].join(eol)
+}
+
+function addSystemFloatMode(contents, eol) {
+  if (contents.includes(DOKIT_SYSTEM_FLOAT_MODE)) return contents
+
+  const markerIndex = contents.indexOf(DOKIT_INIT_MARKER)
+  const builderIndex = contents.lastIndexOf('DoKit.Builder(this)', markerIndex)
+  const buildIndex = contents.indexOf('.build()', markerIndex)
+  if (builderIndex < 0 || buildIndex < 0) {
+    throw new Error('withDoKit: existing DoKit initialization is unsupported')
+  }
+  const builderLineStart = contents.lastIndexOf(eol, builderIndex) + eol.length
+  const indent = contents.slice(builderLineStart, builderIndex)
+  const buildLineEnd = contents.indexOf(eol, buildIndex)
+  const insertAt = buildLineEnd < 0 ? contents.length : buildLineEnd
+  return `${contents.slice(0, insertAt)}${eol}${indent}${DOKIT_SYSTEM_FLOAT_MODE}${contents.slice(insertAt)}`
 }
 
 function addNetworkMonitorStart(contents, eol) {
