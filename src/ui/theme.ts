@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from 'react-native'
+import { Platform, StatusBar, StyleSheet } from 'react-native'
 
 export const colors = {
   background: '#0F172A',
@@ -20,7 +20,12 @@ const monoFont = Platform.select({ ios: 'Menlo', android: 'monospace' })
 
 export const styles = StyleSheet.create({
   screenBackdrop: { backgroundColor: colors.surface, flex: 1 },
-  screen: { backgroundColor: colors.surface, flex: 1, overflow: 'hidden' },
+  screen: {
+    backgroundColor: colors.surface,
+    flex: 1,
+    overflow: 'hidden',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -34,7 +39,7 @@ export const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 0,
   },
   title: {
     color: colors.text,
