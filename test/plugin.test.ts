@@ -157,7 +157,7 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('MDKNetworkFilter')
     expect(source).toContain('curlCommand')
     expect(source).toContain('WindowInsetsCompat.Type.systemBars()')
-    expect(source).toContain('LinearLayout.LayoutParams(dp(96), dp(56))')
+    expect(source).toContain('LinearLayout.LayoutParams(dp(44), dp(44))')
     expect(source).toContain('override fun onBackPressed(): Boolean')
     expect(source).toContain('finish()')
     expect(source).not.toContain('NetWorkMonitorFragment')
@@ -165,6 +165,34 @@ describe('DoKit Expo config plugin', () => {
     expect(renderMobileDiagnosticsResources()).toContain(
       'name="mobile_diagnostics_network">Network'
     )
+  })
+
+  it('keeps the Android network inspector aligned with the iOS information hierarchy', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('private fun summaryCard(')
+    expect(source).toContain('"Requests"')
+    expect(source).toContain('"Received"')
+    expect(source).toContain('"Capture"')
+    expect(source).toContain('addTextChangedListener')
+    expect(source).toContain('Search host, path, method, or status')
+    expect(source).toContain('private fun requestHost(')
+    expect(source).toContain('private fun requestPath(')
+    expect(source).toContain('private fun requestMetadata(')
+    expect(source).toContain('private enum class MDKNetworkDetailTab')
+    expect(source).toContain('"Request"')
+    expect(source).toContain('"Response"')
+    expect(source).toContain('private fun bodySection(')
+    expect(source).toContain('private fun iconButton(')
+    expect(source).toContain('private fun isDarkTheme(')
+    expect(source).toContain('androidx.appcompat.R.drawable.abc_ic_ab_back_material')
+    expect(source).toContain('androidx.appcompat.R.drawable.abc_ic_menu_copy_mtrl_am_alpha')
+    expect(source).toContain('setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_menu_search')
+    expect(source).toContain('trackTintList = captureTrackColors()')
   })
 
   it('restores the single DoKit entry across activity and inspector lifecycles', () => {
@@ -198,7 +226,8 @@ describe('DoKit Expo config plugin', () => {
       'mainHandler.post {\n        if (isAdded && selected == null) renderList()'
     )
     expect(source).toContain('val page = visible.take(visibleLimit)')
-    expect(source).toContain('Showing ${page.size} of ${visible.size} matching · ${records.size} total')
+    expect(source).toContain('showingLabel?.text = "Showing ${page.size} of ${visible.size} matching"')
+    expect(source).toContain('requestCountLabel?.text = records.size.toString()')
     expect(source).toContain('text("Load older"')
     expect(source).toContain('visibleLimit += NETWORK_PAGE_SIZE')
     expect(source).toContain('page.forEach { record -> content.addView(requestCard(record)) }')
