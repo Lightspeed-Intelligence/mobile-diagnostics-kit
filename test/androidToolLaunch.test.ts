@@ -57,6 +57,60 @@ describe('Android DoKit tool launch contract', () => {
     expect(doKit).toContain('DoKit.launchFloating')
   })
 
+  it('reopens the DoKit tool panel after the React Native modal has closed', () => {
+    const {
+      renderMobileDiagnosticsDoKitSource,
+      renderMobileDiagnosticsLauncherSource,
+    } = require('../plugin/withDoKit.js')
+
+    const doKit = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const launcher = renderMobileDiagnosticsLauncherSource('com.example.app')
+
+    expect(launcher).toContain('fun returnToToolPanel()')
+    expect(launcher).toContain('reactApplicationContext.runOnUiQueueThread')
+    expect(launcher).toContain(
+      'MobileDiagnosticsDoKit.returnToToolPanelAfterInspector()'
+    )
+    expect(doKit).toContain('fun returnToToolPanelAfterInspector()')
+    expect(doKit).toContain('activity.window.decorView.post')
+    expect(doKit).toContain('panelRestoreGeneration += 1')
+    expect(doKit).toContain('if (generation != panelRestoreGeneration')
+    expect(doKit).toContain('DoKit.showToolPanel()')
+    expect(doKit.indexOf('showLauncherIfMissing(activity)')).toBeLessThan(
+      doKit.lastIndexOf('DoKit.showToolPanel()')
+    )
+
+    const activityResume = doKit.slice(
+      doKit.indexOf('override fun onActivityResumed'),
+      doKit.indexOf('override fun onActivityPaused')
+    )
+    expect(activityResume.indexOf('currentActivity = activity')).toBeLessThan(
+      activityResume.indexOf('if (inspectorVisible) return')
+    )
+  })
+
+  it('carries a pending panel return across activity recreation', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const activityResume = source.slice(
+      source.indexOf('override fun onActivityResumed'),
+      source.indexOf('override fun onActivityPaused')
+    )
+    const passiveRestore = source.slice(
+      source.indexOf('fun restoreLauncherAfterInspector()'),
+      source.indexOf('fun returnToToolPanelAfterInspector()')
+    )
+
+    expect(source).toContain('private var panelRestorePending = false')
+    expect(activityResume).toContain('if (panelRestorePending)')
+    expect(activityResume).toContain('scheduleToolPanelRestore(activity)')
+    expect(passiveRestore).toContain('panelRestorePending = false')
+    expect(passiveRestore).not.toContain('DoKit.showToolPanel()')
+  })
+
   it('uses a bounded custom system launcher so off-icon taps reach the app', () => {
     const {
       renderMobileDiagnosticsDoKitSource,

@@ -26,6 +26,8 @@ internal object MobileDiagnosticsDoKit {
   )
   private var lifecycleRestoreInstalled = false
   private var inspectorVisible = false
+  private var panelRestoreGeneration = 0
+  private var panelRestorePending = false
   private var currentActivity: Activity? = null
 
   fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
@@ -48,8 +50,12 @@ internal object MobileDiagnosticsDoKit {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
         override fun onActivityStarted(activity: Activity) = Unit
         override fun onActivityResumed(activity: Activity) {
-          if (inspectorVisible) return
           currentActivity = activity
+          if (inspectorVisible) return
+          if (panelRestorePending) {
+            scheduleToolPanelRestore(activity)
+            return
+          }
           activity.window.decorView.post {
             if (inspectorVisible || currentActivity !== activity) return@post
             DoKit.hide()
@@ -70,12 +76,41 @@ internal object MobileDiagnosticsDoKit {
 
   fun hideLauncherForInspector() {
     inspectorVisible = true
+    panelRestorePending = false
+    panelRestoreGeneration += 1
     DoKit.removeFloating(MobileDiagnosticsMainIconDoKitView::class.java)
   }
 
   fun restoreLauncherAfterInspector() {
     inspectorVisible = false
+    panelRestorePending = false
+    panelRestoreGeneration += 1
     currentActivity?.let { showLauncherIfMissing(it) }
+  }
+
+  fun returnToToolPanelAfterInspector() {
+    inspectorVisible = false
+    panelRestorePending = true
+    currentActivity?.let { scheduleToolPanelRestore(it) }
+  }
+
+  private fun scheduleToolPanelRestore(activity: Activity) {
+    panelRestoreGeneration += 1
+    val generation = panelRestoreGeneration
+
+    // React calls this bridge only after the Modal's hidden state commits.
+    // Post one UI turn so its Dialog is detached before DoKit owns focus again.
+    activity.window.decorView.post {
+      if (generation != panelRestoreGeneration ||
+          !panelRestorePending ||
+          inspectorVisible ||
+          currentActivity !== activity ||
+          activity.isFinishing ||
+          activity.isDestroyed) return@post
+      panelRestorePending = false
+      showLauncherIfMissing(activity)
+      DoKit.showToolPanel()
+    }
   }
 
   private fun showLauncherIfMissing(activity: Activity) {

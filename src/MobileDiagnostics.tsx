@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -60,18 +60,39 @@ export function MobileDiagnostics({
     reduceDiagnosticsPresentation,
     initialDiagnosticsPresentation
   )
+  const inspectorVisibleRef = useRef(false)
+  const launcherRef = useRef(launcher)
+  launcherRef.current = launcher
 
   useEffect(() => {
     if (!enabled) return
     return launcher.subscribe((destination) => {
+      inspectorVisibleRef.current = true
       dispatch({ destination, type: 'open' })
     })
   }, [enabled, launcher])
 
   useEffect(() => {
-    if (!enabled || !presentation.visible) return
-    return () => launcher.restore?.()
+    const inspectorWasVisible = inspectorVisibleRef.current
+    const inspectorIsVisible = enabled && presentation.visible
+    inspectorVisibleRef.current = inspectorIsVisible
+
+    if (!inspectorWasVisible || inspectorIsVisible) return
+    if (enabled && launcher.returnToPanel) {
+      launcher.returnToPanel()
+      return
+    }
+    launcher.restore?.()
   }, [enabled, launcher, presentation.visible])
+
+  useEffect(
+    () => () => {
+      if (!inspectorVisibleRef.current) return
+      inspectorVisibleRef.current = false
+      launcherRef.current.restore?.()
+    },
+    []
+  )
 
   if (!enabled) return null
 

@@ -6,6 +6,10 @@ const sourcePath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../src/MobileDiagnostics.tsx'
 )
+const nativeLauncherPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../src/nativeLauncher.ts'
+)
 const themePath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../src/ui/theme.ts'
@@ -37,11 +41,27 @@ describe('React Native diagnostics presentation contract', () => {
     expect(modal).not.toContain('style={styles.sheet}')
   })
 
-  it('restores the native launcher when the full-screen page closes', () => {
+  it('returns explicit closes to DoKit after the modal hidden state commits', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+    const nativeLauncher = readFileSync(nativeLauncherPath, 'utf8')
+
+    expect(source).toContain('const inspectorVisibleRef = useRef(false)')
+    expect(source).toContain(
+      'const inspectorIsVisible = enabled && presentation.visible'
+    )
+    expect(source).toContain('if (!inspectorWasVisible || inspectorIsVisible) return')
+    expect(source).toContain('launcher.returnToPanel()')
+    expect(nativeLauncher).toContain('returnToPanel?(): void')
+    expect(nativeLauncher).toContain('returnToToolPanel?(): void')
+    expect(nativeLauncher).toContain('nativeModule.returnToToolPanel?.()')
+    expect(nativeLauncher).toContain('nativeModule.restoreMainIcon()')
+  })
+
+  it('only restores the launcher for disabled or unmounted cleanup', () => {
     const source = readFileSync(sourcePath, 'utf8')
 
-    expect(source).toContain('if (!enabled || !presentation.visible) return')
-    expect(source).toContain('return () => launcher.restore?.()')
+    expect(source).toContain('launcher.restore?.()')
+    expect(source).toContain('launcherRef.current.restore?.()')
   })
 
   it('keeps full-screen Android content below the status bar', () => {

@@ -62,6 +62,13 @@ internal class MobileDiagnosticsLauncherModule(
     }
   }
 
+  @ReactMethod
+  fun returnToToolPanel() {
+    reactApplicationContext.runOnUiQueueThread {
+      MobileDiagnosticsDoKit.returnToToolPanelAfterInspector()
+    }
+  }
+
   private companion object {
     const val MODULE_NAME = "MobileDiagnosticsLauncher"
   }
