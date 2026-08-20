@@ -54,6 +54,7 @@ class MainApplication : Application(), ReactApplication {
       .customKits(MobileDiagnosticsDoKit.kits())
       .disableUpload()
       .build()
+    MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()
     DoKitManager.IS_NORMAL_FLOAT_MODE = false
     OkHttpClientProvider.setOkHttpClientFactory {
       OkHttpClientProvider.createClientBuilder(this)
@@ -118,7 +119,9 @@ describe('DoKit Expo config plugin', () => {
       application.indexOf('MobileDiagnosticsDoKit.installLifecycleRestore(this)')
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
-    expect(application).toContain('MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()')
+    expect(application).toContain(
+      'MobileDiagnosticsDoKit.scheduleUnsupportedBuiltInKitCleanup()'
+    )
     expect(
       application.match(/MobileDiagnosticsDoKit\.installLifecycleRestore\(this\)/g)
     ).toHaveLength(1)
@@ -150,7 +153,10 @@ describe('DoKit Expo config plugin', () => {
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(application).toContain('.putString("float_start_mode", "normal")')
-    expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
+    expect(
+      application.match(/scheduleUnsupportedBuiltInKitCleanup\(\)/g)
+    ).toHaveLength(1)
+    expect(application).not.toContain('scheduleNetworkKitCleanup()')
     expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
   })
 
@@ -201,6 +207,48 @@ describe('DoKit Expo config plugin', () => {
     expect(source).not.toContain('Tipsy')
     expect(renderMobileDiagnosticsResources()).toContain(
       'name="mobile_diagnostics_network">Network'
+    )
+  })
+
+  it('removes unusable built-in Android kits without removing custom application tools', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const unsupportedBuiltInKitIds = [
+      'dokit_sdk_performance_ck_network',
+      'dokit_sdk_platform_ck_mock',
+      'dokit_sdk_platform_ck_health',
+      'dokit_sdk_platform_ck_dokit_connect',
+      'dokit_sdk_platform_ck_dokit_for_web',
+    ]
+
+    unsupportedBuiltInKitIds.forEach((kitId) => {
+      expect(source).toContain(`"${kitId}"`)
+    })
+    expect(source).toContain('UNSUPPORTED_BUILT_IN_KIT_IDS')
+    expect(
+      source.match(
+        /removeAll \{ isUnsupportedBuiltInKit\(it\.kit\?\.innerKitId\(\)\) \}/g
+      )
+    ).toHaveLength(2)
+    expect(source).toContain('DoKitManager.GLOBAL_KITS.values.forEach')
+    expect(source).toContain('DoKitManager.GLOBAL_SYSTEM_KITS.values.forEach')
+    expect(source).toContain(
+      'kitId != null && kitId in UNSUPPORTED_BUILT_IN_KIT_IDS'
+    )
+    expect(source).toContain('fun scheduleUnsupportedBuiltInKitCleanup()')
+    expect(source).toContain(
+      'private fun cleanupUnsupportedBuiltInKits(attempt: Int)'
+    )
+    expect(source).toContain('if (attempt < CLEANUP_ATTEMPTS)')
+    expect(source).toContain(
+      '{ cleanupUnsupportedBuiltInKits(attempt + 1) }'
+    )
+    expect(source).not.toContain('if (!removed &&')
+    expect(source).toContain(
+      '"Application Tools" to listOf(\n      DestinationKit("network"),\n      DestinationKit("storage"),\n      DestinationKit("ota"),'
     )
   })
 

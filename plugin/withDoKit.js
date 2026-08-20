@@ -20,6 +20,10 @@ const DOKIT_IMPORTS = [
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
+const BUILT_IN_KIT_CLEANUP =
+  'MobileDiagnosticsDoKit.scheduleUnsupportedBuiltInKitCleanup()'
+const LEGACY_NETWORK_KIT_CLEANUP =
+  'MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()'
 const DOKIT_NORMAL_FLOAT_MODE = 'DoKitManager.IS_NORMAL_FLOAT_MODE = true'
 const LEGACY_DOKIT_SYSTEM_FLOAT_MODE =
   'DoKitManager.IS_NORMAL_FLOAT_MODE = false'
@@ -102,7 +106,10 @@ function addImport(contents, importLine) {
 
 function addDoKitToMainApplication(contents) {
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
-  const next = DOKIT_IMPORTS.reduce(addImport, contents)
+  const next = DOKIT_IMPORTS.reduce(addImport, contents).replaceAll(
+    LEGACY_NETWORK_KIT_CLEANUP,
+    BUILT_IN_KIT_CLEANUP
+  )
   if (next.includes(DOKIT_INIT_MARKER)) {
     return addMobileDiagnosticsNetworkPackage(
       addNetworkMonitorStart(addNormalFloatMode(next, eol), eol),
@@ -178,7 +185,7 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .build()`,
     `${indent}DoKitManager.ALWAYS_SHOW_MAIN_ICON = false`,
     `${indent}${LIFECYCLE_RESTORE_INSTALL}`,
-    `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
+    `${indent}${BUILT_IN_KIT_CLEANUP}`,
     `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
     `${indent}${NETWORK_MONITOR_START}`,
   ].join(eol)
@@ -222,11 +229,13 @@ function addNormalFloatMode(contents, eol) {
 
 function addNetworkMonitorStart(contents, eol) {
   const needsNetworkStart = !contents.includes(NETWORK_MONITOR_START)
-  const needsNetworkCleanup = !contents.includes(
-    'MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()'
-  )
+  const needsBuiltInKitCleanup = !contents.includes(BUILT_IN_KIT_CLEANUP)
   const needsLifecycleRestore = !contents.includes(LIFECYCLE_RESTORE_INSTALL)
-  if (!needsNetworkStart && !needsNetworkCleanup && !needsLifecycleRestore) {
+  if (
+    !needsNetworkStart &&
+    !needsBuiltInKitCleanup &&
+    !needsLifecycleRestore
+  ) {
     return contents
   }
 
@@ -245,8 +254,8 @@ function addNetworkMonitorStart(contents, eol) {
   if (needsLifecycleRestore) {
     lines.push(`${indent}${LIFECYCLE_RESTORE_INSTALL}`)
   }
-  if (needsNetworkCleanup) {
-    lines.push(`${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`)
+  if (needsBuiltInKitCleanup) {
+    lines.push(`${indent}${BUILT_IN_KIT_CLEANUP}`)
   }
   if (needsNetworkStart) {
     lines.push(

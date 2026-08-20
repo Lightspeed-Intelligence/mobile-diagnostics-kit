@@ -16,8 +16,14 @@ import com.didichuxing.doraemonkit.kit.core.DoKitManager
 import java.util.LinkedHashMap
 
 internal object MobileDiagnosticsDoKit {
-  private const val OFFICIAL_NETWORK_KIT = "dokit_sdk_performance_ck_network"
   private const val CLEANUP_ATTEMPTS = 20
+  private val UNSUPPORTED_BUILT_IN_KIT_IDS = setOf(
+    "dokit_sdk_performance_ck_network",
+    "dokit_sdk_platform_ck_mock",
+    "dokit_sdk_platform_ck_health",
+    "dokit_sdk_platform_ck_dokit_connect",
+    "dokit_sdk_platform_ck_dokit_for_web",
+  )
   private var lifecycleRestoreInstalled = false
   private var inspectorVisible = false
   private var currentActivity: Activity? = null
@@ -30,8 +36,8 @@ internal object MobileDiagnosticsDoKit {
     ),
   )
 
-  fun scheduleNetworkKitCleanup() {
-    cleanupNetworkKit(0)
+  fun scheduleUnsupportedBuiltInKitCleanup() {
+    cleanupUnsupportedBuiltInKits(0)
   }
 
   fun installLifecycleRestore(application: Application) {
@@ -112,21 +118,23 @@ internal object MobileDiagnosticsDoKit {
     }
   }
 
-  private fun cleanupNetworkKit(attempt: Int) {
-    var removed = false
+  private fun cleanupUnsupportedBuiltInKits(attempt: Int) {
     DoKitManager.GLOBAL_KITS.values.forEach { kits ->
-      removed = kits.removeAll { it.kit?.innerKitId() == OFFICIAL_NETWORK_KIT } || removed
+      kits.removeAll { isUnsupportedBuiltInKit(it.kit?.innerKitId()) }
     }
     DoKitManager.GLOBAL_SYSTEM_KITS.values.forEach { kits ->
-      removed = kits.removeAll { it.kit?.innerKitId() == OFFICIAL_NETWORK_KIT } || removed
+      kits.removeAll { isUnsupportedBuiltInKit(it.kit?.innerKitId()) }
     }
-    if (!removed && attempt < CLEANUP_ATTEMPTS) {
+    if (attempt < CLEANUP_ATTEMPTS) {
       android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-        { cleanupNetworkKit(attempt + 1) },
+        { cleanupUnsupportedBuiltInKits(attempt + 1) },
         100L,
       )
     }
   }
+
+  private fun isUnsupportedBuiltInKit(kitId: String?): Boolean =
+    kitId != null && kitId in UNSUPPORTED_BUILT_IN_KIT_IDS
 
   private class DestinationKit(
     private val destination: String,
@@ -146,11 +154,11 @@ internal object MobileDiagnosticsDoKit {
       }
 
     override fun onAppInit(context: Context?) {
-      if (destination == "network") scheduleNetworkKitCleanup()
+      if (destination == "network") scheduleUnsupportedBuiltInKitCleanup()
     }
 
     override fun onClickWithReturn(activity: Activity): Boolean {
-      if (destination == "network") cleanupNetworkKit(0)
+      if (destination == "network") cleanupUnsupportedBuiltInKits(0)
       return MobileDiagnosticsLauncher.openAfterPanelDismiss(activity, destination)
     }
   }
