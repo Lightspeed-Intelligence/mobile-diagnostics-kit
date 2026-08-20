@@ -68,6 +68,11 @@ export function MobileDiagnostics({
     })
   }, [enabled, launcher])
 
+  useEffect(() => {
+    if (!enabled || !presentation.visible) return
+    return () => launcher.restore?.()
+  }, [enabled, launcher, presentation.visible])
+
   if (!enabled) return null
 
   const close = () => dispatch({ type: 'close' as const })

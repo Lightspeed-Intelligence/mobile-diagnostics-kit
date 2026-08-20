@@ -4,6 +4,9 @@ import android.app.Activity
 import android.widget.Toast
 import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
 internal object MobileDiagnosticsLauncher {
@@ -23,6 +26,7 @@ internal object MobileDiagnosticsLauncher {
     // Modal, and avoids manually detaching DoKit's panel a second time.
     activity.window.decorView.post {
       runCatching {
+        MobileDiagnosticsDoKit.hideLauncherForInspector()
         val payload = Arguments.createMap().apply {
           putString("destination", destination)
         }
@@ -30,6 +34,7 @@ internal object MobileDiagnosticsLauncher {
           .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
           .emit(OPEN_EVENT, payload)
       }.onFailure {
+        MobileDiagnosticsDoKit.restoreLauncherAfterInspector()
         showRuntimeUnavailable(activity)
       }
     }
@@ -42,5 +47,22 @@ internal object MobileDiagnosticsLauncher {
       R.string.mobile_diagnostics_runtime_unavailable,
       Toast.LENGTH_SHORT,
     ).show()
+  }
+}
+
+internal class MobileDiagnosticsLauncherModule(
+  reactContext: ReactApplicationContext,
+) : ReactContextBaseJavaModule(reactContext) {
+  override fun getName(): String = MODULE_NAME
+
+  @ReactMethod
+  fun restoreMainIcon() {
+    reactApplicationContext.runOnUiQueueThread {
+      MobileDiagnosticsDoKit.restoreLauncherAfterInspector()
+    }
+  }
+
+  private companion object {
+    const val MODULE_NAME = "MobileDiagnosticsLauncher"
   }
 }

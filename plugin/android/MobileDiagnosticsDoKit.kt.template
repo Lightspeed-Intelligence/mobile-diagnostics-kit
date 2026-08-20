@@ -13,6 +13,8 @@ internal object MobileDiagnosticsDoKit {
   private const val OFFICIAL_NETWORK_KIT = "dokit_sdk_performance_ck_network"
   private const val CLEANUP_ATTEMPTS = 20
   private var lifecycleRestoreInstalled = false
+  private var launcherInitialized = false
+  private var inspectorVisible = false
 
   fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
     "Application Tools" to listOf(
@@ -34,8 +36,12 @@ internal object MobileDiagnosticsDoKit {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
         override fun onActivityStarted(activity: Activity) = Unit
         override fun onActivityResumed(activity: Activity) {
-          DoKitManager.MAIN_ICON_HAS_SHOW = false
-          DoKit.show()
+          if (inspectorVisible) return
+          if (!launcherInitialized) {
+            launcherInitialized = true
+            DoKitManager.MAIN_ICON_HAS_SHOW = false
+          }
+          showLauncherIfMissing()
         }
         override fun onActivityPaused(activity: Activity) = Unit
         override fun onActivityStopped(activity: Activity) = Unit
@@ -43,6 +49,22 @@ internal object MobileDiagnosticsDoKit {
         override fun onActivityDestroyed(activity: Activity) = Unit
       },
     )
+  }
+
+  fun hideLauncherForInspector() {
+    inspectorVisible = true
+    DoKit.hide()
+  }
+
+  fun restoreLauncherAfterInspector() {
+    inspectorVisible = false
+    showLauncherIfMissing()
+  }
+
+  private fun showLauncherIfMissing() {
+    if (!DoKit.isMainIconShow()) {
+      DoKit.show()
+    }
   }
 
   private fun cleanupNetworkKit(attempt: Int) {

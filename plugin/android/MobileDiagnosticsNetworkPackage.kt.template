@@ -8,7 +8,10 @@ import com.facebook.react.uimanager.ViewManager
 class MobileDiagnosticsNetworkPackage : ReactPackage {
   override fun createNativeModules(
     reactContext: ReactApplicationContext,
-  ): List<NativeModule> = listOf(MobileDiagnosticsNetworkModule(reactContext))
+  ): List<NativeModule> = listOf(
+    MobileDiagnosticsLauncherModule(reactContext),
+    MobileDiagnosticsNetworkModule(reactContext),
+  )
 
   override fun createViewManagers(
     reactContext: ReactApplicationContext,

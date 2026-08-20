@@ -37,6 +37,13 @@ describe('React Native diagnostics presentation contract', () => {
     expect(modal).not.toContain('style={styles.sheet}')
   })
 
+  it('restores the native launcher when the full-screen page closes', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+
+    expect(source).toContain('if (!enabled || !presentation.visible) return')
+    expect(source).toContain('return () => launcher.restore?.()')
+  })
+
   it('keeps full-screen Android content below the status bar', () => {
     const theme = readFileSync(themePath, 'utf8')
 
