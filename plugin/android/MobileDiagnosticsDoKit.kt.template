@@ -4,8 +4,14 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.FrameLayout
 import com.didichuxing.doraemonkit.DoKit
 import com.didichuxing.doraemonkit.kit.AbstractKit
+import com.didichuxing.doraemonkit.kit.core.AbsDoKitView
+import com.didichuxing.doraemonkit.kit.core.DoKitViewLayoutParams
 import com.didichuxing.doraemonkit.kit.core.DoKitManager
 import java.util.LinkedHashMap
 
@@ -15,6 +21,7 @@ internal object MobileDiagnosticsDoKit {
   private var lifecycleRestoreInstalled = false
   private var launcherInitialized = false
   private var inspectorVisible = false
+  private var currentActivity: Activity? = null
 
   fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
     "Application Tools" to listOf(
@@ -37,33 +44,70 @@ internal object MobileDiagnosticsDoKit {
         override fun onActivityStarted(activity: Activity) = Unit
         override fun onActivityResumed(activity: Activity) {
           if (inspectorVisible) return
+          currentActivity = activity
           if (!launcherInitialized) {
             launcherInitialized = true
             DoKitManager.MAIN_ICON_HAS_SHOW = false
+            DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
           }
-          showLauncherIfMissing()
+          showLauncherIfMissing(activity)
         }
         override fun onActivityPaused(activity: Activity) = Unit
         override fun onActivityStopped(activity: Activity) = Unit
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-        override fun onActivityDestroyed(activity: Activity) = Unit
+        override fun onActivityDestroyed(activity: Activity) {
+          if (currentActivity === activity) currentActivity = null
+        }
       },
     )
   }
 
   fun hideLauncherForInspector() {
     inspectorVisible = true
-    DoKit.hide()
+    DoKit.removeFloating(MobileDiagnosticsMainIconDoKitView::class.java)
   }
 
   fun restoreLauncherAfterInspector() {
     inspectorVisible = false
-    showLauncherIfMissing()
+    currentActivity?.let { showLauncherIfMissing(it) }
   }
 
-  private fun showLauncherIfMissing() {
-    if (!DoKit.isMainIconShow) {
-      DoKit.show()
+  private fun showLauncherIfMissing(activity: Activity) {
+    if (DoKit.getDoKitView(activity, MobileDiagnosticsMainIconDoKitView::class.java) == null) {
+      DoKit.launchFloating(MobileDiagnosticsMainIconDoKitView::class.java)
+    }
+  }
+
+  /**
+   * DoKit's stock main icon is a full-screen transparent system window in
+   * some Android configurations. Keep the system-window mode (RN modals can
+   * otherwise cover it) while constraining the touch target to the icon.
+   */
+  internal class MobileDiagnosticsMainIconDoKitView : AbsDoKitView() {
+    override fun onCreate(context: Context) = Unit
+
+    override fun onCreateView(context: Context, view: FrameLayout): View =
+      LayoutInflater.from(context).inflate(
+        com.didichuxing.doraemonkit.R.layout.dk_main_launch_icon,
+        view,
+        false,
+      )
+
+    override fun onViewCreated(view: FrameLayout) {
+      getDoKitView().setOnClickListener { DoKit.showToolPanel() }
+    }
+
+    override fun initDokitViewLayoutParams(params: DoKitViewLayoutParams) {
+      val launcherSize = (LAUNCHER_SIZE_DP * resources.displayMetrics.density).toInt()
+      params.width = launcherSize
+      params.height = launcherSize
+      params.gravity = Gravity.TOP or Gravity.START
+      params.x = com.didichuxing.doraemonkit.config.FloatIconConfig.getLastPosX()
+      params.y = com.didichuxing.doraemonkit.config.FloatIconConfig.getLastPosY()
+    }
+
+    private companion object {
+      const val LAUNCHER_SIZE_DP = 48
     }
   }
 

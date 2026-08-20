@@ -52,10 +52,41 @@ describe('Android DoKit tool launch contract', () => {
       'MobileDiagnosticsDoKit.restoreLauncherAfterInspector()'
     )
     expect(reactPackage).toContain('MobileDiagnosticsLauncherModule(reactContext)')
-    expect(doKit).toContain('DoKit.hide()')
-    expect(doKit).toContain('if (!DoKit.isMainIconShow)')
-    expect(doKit).not.toContain('DoKit.isMainIconShow()')
-    expect(doKit.match(/DoKit\.show\(\)/g)).toHaveLength(1)
+    expect(doKit).toContain('MobileDiagnosticsMainIconDoKitView::class.java')
+    expect(doKit).toContain('DoKit.removeFloating')
+    expect(doKit).toContain('DoKit.launchFloating')
+  })
+
+  it('uses a bounded custom system launcher so off-icon taps reach the app', () => {
+    const {
+      renderMobileDiagnosticsDoKitSource,
+      addDoKitToMainApplication,
+    } = require('../plugin/withDoKit.js')
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const application = addDoKitToMainApplication(`package com.example.app
+
+import android.app.Application
+import com.facebook.react.PackageList
+
+class MainApplication : Application() {
+  fun packages() {
+    PackageList(this).packages.apply {
+    }
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+  }
+}`)
+
+    expect(application).toContain('DoKitManager.ALWAYS_SHOW_MAIN_ICON = false')
+    expect(source).toContain('class MobileDiagnosticsMainIconDoKitView')
+    expect(source).toContain('params.width = launcherSize')
+    expect(source).toContain('params.height = launcherSize')
+    expect(source).not.toContain('DoKitViewLayoutParams.MATCH_PARENT')
+    expect(source).not.toContain('DoKit.show()')
+    expect(source).not.toContain('DoKit.isMainIconShow')
   })
 
   it('generates an app-owned vector icon for Expo Update', () => {

@@ -165,6 +165,7 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
     `${indent}${DOKIT_SYSTEM_FLOAT_MODE}`,
+    `${indent}DoKitManager.ALWAYS_SHOW_MAIN_ICON = false`,
     `${indent}${LIFECYCLE_RESTORE_INSTALL}`,
     `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
     `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,

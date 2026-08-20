@@ -205,7 +205,8 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('application.registerActivityLifecycleCallbacks')
     expect(source).toContain('override fun onActivityResumed(activity: Activity)')
     expect(source).toContain('DoKitManager.MAIN_ICON_HAS_SHOW = false')
-    expect(source).toContain('DoKit.show()')
+    expect(source).toContain('DoKit.launchFloating(MobileDiagnosticsMainIconDoKitView::class.java)')
+    expect(source).not.toContain('DoKit.show()')
     expect(source).toContain('DestinationKit("network")')
   })
 
