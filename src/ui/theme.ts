@@ -1,7 +1,6 @@
 import { Platform, StyleSheet } from 'react-native'
 
 export const colors = {
-  backdrop: 'rgba(2, 6, 23, 0.76)',
   background: '#0F172A',
   surface: '#111827',
   raised: '#1E293B',
@@ -20,21 +19,6 @@ export const colors = {
 const monoFont = Platform.select({ ios: 'Menlo', android: 'monospace' })
 
 export const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: colors.backdrop,
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderColor: colors.borderMuted,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    maxHeight: '94%',
-    minHeight: '72%',
-    overflow: 'hidden',
-  },
   screenBackdrop: { backgroundColor: colors.surface, flex: 1 },
   screen: { backgroundColor: colors.surface, flex: 1, overflow: 'hidden' },
   header: {

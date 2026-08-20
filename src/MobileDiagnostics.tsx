@@ -70,37 +70,21 @@ export function MobileDiagnostics({
 
   if (!enabled) return null
 
-  const testIDPrefix = contentProps.testIDPrefix ?? 'mobileDiagnostics'
+  const close = () => dispatch({ type: 'close' as const })
   return (
     <Modal
-      animationType="fade"
-      onRequestClose={() => dispatch({ type: 'close' })}
-      transparent
+      animationType="slide"
+      onRequestClose={close}
+      presentationStyle="fullScreen"
+      transparent={false}
       visible={presentation.visible}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
-      >
-        <SafeAreaView
-          style={styles.sheet}
-          testID={`${testIDPrefix}.screen`}
-        >
-          <DiagnosticsContent
-            active={presentation.visible}
-            destination={presentation.destination}
-            enabled={enabled}
-            entries={contentProps.entries ?? DEFAULT_STORAGE_ENTRIES}
-            labels={contentProps.labels}
-            onClose={() => dispatch({ type: 'close' })}
-            reloadAfterFetch={contentProps.reloadAfterFetch ?? true}
-            storage={contentProps.storage}
-            testIDPrefix={testIDPrefix}
-            title={contentProps.title ?? 'Developer Tools'}
-            updates={contentProps.updates}
-          />
-        </SafeAreaView>
-      </KeyboardAvoidingView>
+      <MobileDiagnosticsScreen
+        {...contentProps}
+        enabled={enabled}
+        initialDestination={presentation.destination}
+        onClose={close}
+      />
     </Modal>
   )
 }
