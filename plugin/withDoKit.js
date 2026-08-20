@@ -27,7 +27,13 @@ const GENERATED_ANDROID_TEMPLATE = path.join(
   'MobileDiagnosticsDoKit.kt.template'
 )
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
-const PROGUARD_RULE = '-keep class com.didichuxing.doraemonkit.** { *; }'
+const PROGUARD_RULES = [
+  '-keep class com.didichuxing.doraemonkit.** { *; }',
+  '-dontwarn coil.**',
+  '-dontwarn com.nostra13.universalimageloader.**',
+  '-dontwarn com.squareup.picasso.**',
+  '-dontwarn com.tencent.smtt.**',
+]
 
 function addDoKitDependencies(contents) {
   const missing = DOKIT_DEPENDENCIES.filter(
@@ -171,9 +177,13 @@ function readPackageName(mainApplicationContents) {
 }
 
 function addDoKitProguardRules(contents) {
-  if (contents.includes(PROGUARD_RULE)) return contents
+  const missingRules = PROGUARD_RULES.filter((rule) => !contents.includes(rule))
+  if (missingRules.length === 0) return contents
   const separator = contents.endsWith('\n') || contents.length === 0 ? '' : '\n'
-  return `${contents}${separator}${PROGUARD_MARKER}\n${PROGUARD_RULE}\n`
+  const marker = contents.includes(PROGUARD_MARKER)
+    ? ''
+    : `${PROGUARD_MARKER}\n`
+  return `${contents}${separator}${marker}${missingRules.join('\n')}\n`
 }
 
 function findMainApplicationFile(javaRoot) {

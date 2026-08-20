@@ -75,6 +75,10 @@ describe('DoKit Expo config plugin', () => {
     const proguard = addDoKitProguardRules(
       addDoKitProguardRules('# host rules\n')
     )
+    const upgradedProguard = addDoKitProguardRules(
+      '# mobile-diagnostics-kit: DoKit runtime\n' +
+        '-keep class com.didichuxing.doraemonkit.** { *; }\n'
+    )
 
     expect(buildGradle.match(/dokitx:3\.7\.11/g)).toHaveLength(1)
     expect(buildGradle.match(/dokitx-okhttp-v4:3\.7\.11/g)).toHaveLength(1)
@@ -86,6 +90,13 @@ describe('DoKit Expo config plugin', () => {
     expect(application).toContain('MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()')
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
+    expect(proguard.match(/-dontwarn coil\.\*\*/g)).toHaveLength(1)
+    expect(
+      proguard.match(/-dontwarn com\.nostra13\.universalimageloader\.\*\*/g)
+    ).toHaveLength(1)
+    expect(proguard.match(/-dontwarn com\.squareup\.picasso\.\*\*/g)).toHaveLength(1)
+    expect(proguard.match(/-dontwarn com\.tencent\.smtt\.\*\*/g)).toHaveLength(1)
+    expect(upgradedProguard).toContain('-dontwarn coil.**')
   })
 
   it('upgrades an existing generated application to start network capture', () => {
