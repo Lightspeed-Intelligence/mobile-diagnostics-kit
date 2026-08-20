@@ -53,7 +53,8 @@ describe('Android DoKit tool launch contract', () => {
     )
     expect(reactPackage).toContain('MobileDiagnosticsLauncherModule(reactContext)')
     expect(doKit).toContain('DoKit.hide()')
-    expect(doKit).toContain('if (!DoKit.isMainIconShow())')
+    expect(doKit).toContain('if (!DoKit.isMainIconShow)')
+    expect(doKit).not.toContain('DoKit.isMainIconShow()')
     expect(doKit.match(/DoKit\.show\(\)/g)).toHaveLength(1)
   })
 

@@ -62,7 +62,7 @@ internal object MobileDiagnosticsDoKit {
   }
 
   private fun showLauncherIfMissing() {
-    if (!DoKit.isMainIconShow()) {
+    if (!DoKit.isMainIconShow) {
       DoKit.show()
     }
   }
