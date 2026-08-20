@@ -88,6 +88,9 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
     expect(application).toContain('MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()')
+    expect(
+      application.match(/MobileDiagnosticsDoKit\.installLifecycleRestore\(this\)/g)
+    ).toHaveLength(1)
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
     expect(proguard.match(/-dontwarn coil\.\*\*/g)).toHaveLength(1)
@@ -111,6 +114,7 @@ describe('DoKit Expo config plugin', () => {
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
     expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
+    expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
   })
 
   it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {
@@ -161,6 +165,43 @@ describe('DoKit Expo config plugin', () => {
     expect(renderMobileDiagnosticsResources()).toContain(
       'name="mobile_diagnostics_network">Network'
     )
+  })
+
+  it('restores the single DoKit entry across activity and inspector lifecycles', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('fun installLifecycleRestore(application: Application)')
+    expect(source).toContain('application.registerActivityLifecycleCallbacks')
+    expect(source).toContain('override fun onActivityResumed(activity: Activity)')
+    expect(source).toContain('DoKit.show()')
+    expect(source).toContain('override fun onDestroyView()')
+    expect(source).toContain('private fun closeInspector()')
+    expect(source).toContain('header("Network", false) { closeInspector() }')
+  })
+
+  it('throttles network updates and pages the filtered record set without losing totals', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('private const val NETWORK_PAGE_SIZE = 100')
+    expect(source).toContain('private const val NETWORK_REFRESH_INTERVAL_MS = 500L')
+    expect(source).toContain('AtomicBoolean(false)')
+    expect(source).toContain('mainHandler.postDelayed(listRefreshRunnable, NETWORK_REFRESH_INTERVAL_MS)')
+    expect(source).not.toContain(
+      'mainHandler.post {\n        if (isAdded && selected == null) renderList()'
+    )
+    expect(source).toContain('val page = visible.take(visibleLimit)')
+    expect(source).toContain('Showing ${page.size} of ${visible.size} matching · ${records.size} total')
+    expect(source).toContain('text("Load older"')
+    expect(source).toContain('visibleLimit += NETWORK_PAGE_SIZE')
+    expect(source).toContain('page.forEach { record -> content.addView(requestCard(record)) }')
   })
 
   it('fails clearly when generated Android files have an unsupported shape', () => {

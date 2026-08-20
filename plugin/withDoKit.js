@@ -19,6 +19,8 @@ const DOKIT_IMPORTS = [
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
+const LIFECYCLE_RESTORE_INSTALL =
+  'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
 const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
 const GENERATED_ANDROID_TEMPLATE = path.join(
@@ -115,6 +117,7 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
+    `${indent}${LIFECYCLE_RESTORE_INSTALL}`,
     `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
     `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
     `${indent}${NETWORK_MONITOR_START}`,
@@ -126,7 +129,10 @@ function addNetworkMonitorStart(contents, eol) {
   const needsNetworkCleanup = !contents.includes(
     'MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()'
   )
-  if (!needsNetworkStart && !needsNetworkCleanup) return contents
+  const needsLifecycleRestore = !contents.includes(LIFECYCLE_RESTORE_INSTALL)
+  if (!needsNetworkStart && !needsNetworkCleanup && !needsLifecycleRestore) {
+    return contents
+  }
 
   const markerIndex = contents.indexOf(DOKIT_INIT_MARKER)
   const builderIndex = contents.lastIndexOf('DoKit.Builder(this)', markerIndex)
@@ -140,6 +146,9 @@ function addNetworkMonitorStart(contents, eol) {
   const buildLineEnd = contents.indexOf(eol, buildIndex)
   const insertAt = buildLineEnd < 0 ? contents.length : buildLineEnd
   const lines = []
+  if (needsLifecycleRestore) {
+    lines.push(`${indent}${LIFECYCLE_RESTORE_INSTALL}`)
+  }
   if (needsNetworkCleanup) {
     lines.push(`${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`)
   }

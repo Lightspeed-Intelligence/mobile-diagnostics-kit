@@ -1,6 +1,7 @@
 package __PACKAGE__
 
 import android.app.Activity
+import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -32,11 +33,13 @@ import com.didichuxing.doraemonkit.kit.network.OnNetworkInfoUpdateListener
 import com.didichuxing.doraemonkit.kit.network.bean.NetworkRecord
 import java.util.LinkedHashMap
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal object MobileDiagnosticsDoKit {
   private const val OPEN_EVENT = "mobile-diagnostics-kit.open"
   private const val OFFICIAL_NETWORK_KIT = "dokit_sdk_performance_ck_network"
   private const val CLEANUP_ATTEMPTS = 20
+  private var lifecycleRestoreInstalled = false
 
   fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
     "Application Tools" to listOf(
@@ -48,6 +51,22 @@ internal object MobileDiagnosticsDoKit {
 
   fun scheduleNetworkKitCleanup() {
     cleanupNetworkKit(0)
+  }
+
+  fun installLifecycleRestore(application: Application) {
+    if (lifecycleRestoreInstalled) return
+    lifecycleRestoreInstalled = true
+    application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+      override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+      override fun onActivityStarted(activity: Activity) = Unit
+      override fun onActivityResumed(activity: Activity) {
+        DoKit.show()
+      }
+      override fun onActivityPaused(activity: Activity) = Unit
+      override fun onActivityStopped(activity: Activity) = Unit
+      override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+      override fun onActivityDestroyed(activity: Activity) = Unit
+    })
   }
 
   private fun cleanupNetworkKit(attempt: Int) {
@@ -141,6 +160,9 @@ private enum class MDKNetworkFilter(val label: String) {
   ERRORS("Errors"),
 }
 
+private const val NETWORK_PAGE_SIZE = 100
+private const val NETWORK_REFRESH_INTERVAL_MS = 500L
+
 internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
   private val mainHandler = Handler(Looper.getMainLooper())
   private lateinit var root: LinearLayout
@@ -149,11 +171,17 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
   private var filter = MDKNetworkFilter.ALL
   private var selected: NetworkRecord? = null
   private var searchInput: EditText? = null
+  private var visibleLimit = NETWORK_PAGE_SIZE
+  private val listRefreshScheduled = AtomicBoolean(false)
+  private val listRefreshRunnable = Runnable {
+    listRefreshScheduled.set(false)
+    if (isAdded && isResumed && selected == null) renderList()
+  }
 
   private val networkListener = object : OnNetworkInfoUpdateListener {
     override fun onNetworkInfoUpdate(record: NetworkRecord?, isNew: Boolean) {
-      mainHandler.post {
-        if (isAdded && selected == null) renderList()
+      if (listRefreshScheduled.compareAndSet(false, true)) {
+        mainHandler.postDelayed(listRefreshRunnable, NETWORK_REFRESH_INTERVAL_MS)
       }
     }
   }
@@ -186,7 +214,16 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
 
   override fun onPause() {
     NetworkManager.get().setOnNetworkInfoUpdateListener(null)
+    mainHandler.removeCallbacks(listRefreshRunnable)
+    listRefreshScheduled.set(false)
     super.onPause()
+  }
+
+  override fun onDestroyView() {
+    mainHandler.removeCallbacks(listRefreshRunnable)
+    listRefreshScheduled.set(false)
+    DoKit.show()
+    super.onDestroyView()
   }
 
   override fun onBackPressed(): Boolean {
@@ -195,14 +232,20 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
       renderList()
       return true
     }
-    return false
+    closeInspector()
+    return true
+  }
+
+  private fun closeInspector() {
+    DoKit.show()
+    finish()
   }
 
   private fun renderList() {
     if (!::root.isInitialized) return
     selected = null
     root.removeAllViews()
-    root.addView(header("Network", false) { finish() })
+    root.addView(header("Network", false) { closeInspector() })
 
     val records = records().asReversed()
     val visible = records.filter { record ->
@@ -214,6 +257,7 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
       val needle = query.trim().lowercase(Locale.ROOT)
       matchesFilter && (needle.isEmpty() || searchableText(record).contains(needle))
     }
+    val page = visible.take(visibleLimit)
 
     val toolbar = LinearLayout(requireContext()).apply {
       orientation = LinearLayout.VERTICAL
@@ -231,6 +275,7 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
       setSelection(text.length)
       setOnEditorActionListener { _, _, _ ->
         query = text.toString()
+        visibleLimit = NETWORK_PAGE_SIZE
         renderList()
         true
       }
@@ -260,6 +305,7 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
         )
         setOnClickListener {
           filter = option
+          visibleLimit = NETWORK_PAGE_SIZE
           renderList()
         }
         contentDescription = "Filter ${option.label}"
@@ -274,7 +320,11 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
       orientation = LinearLayout.VERTICAL
       setPadding(dp(16), dp(8), dp(16), dp(24))
     }
-    toolbar.addView(text("${visible.size} requests", 13f, Color.rgb(100, 116, 139)))
+    toolbar.addView(text(
+      "Showing ${page.size} of ${visible.size} matching · ${records.size} total",
+      13f,
+      Color.rgb(100, 116, 139),
+    ))
     root.addView(toolbar)
 
     val scroll = ScrollView(requireContext()).apply {
@@ -289,7 +339,23 @@ internal class MobileDiagnosticsNetworkFragment : BaseFragment() {
         setPadding(0, dp(60), 0, 0)
       })
     } else {
-      visible.forEach { record -> content.addView(requestCard(record)) }
+      page.forEach { record -> content.addView(requestCard(record)) }
+      if (page.size < visible.size) {
+        content.addView(text("Load older", 14f, Color.rgb(21, 128, 61), true).apply {
+          gravity = Gravity.CENTER
+          isClickable = true
+          isFocusable = true
+          background = rounded(Color.WHITE, Color.rgb(21, 128, 61), dp(10))
+          setOnClickListener {
+            visibleLimit += NETWORK_PAGE_SIZE
+            renderList()
+          }
+          contentDescription = "Load older network requests"
+          layoutParams = LinearLayout.LayoutParams(-1, dp(44)).apply {
+            topMargin = dp(4)
+          }
+        })
+      }
     }
   }
 
