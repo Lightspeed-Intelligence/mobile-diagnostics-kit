@@ -14,9 +14,15 @@ const MAIN_APPLICATION = `
 package com.example.app
 
 import android.app.Application
+import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
+import com.facebook.react.ReactPackage
 
 class MainApplication : Application(), ReactApplication {
+  fun getPackages(): List<ReactPackage> =
+    PackageList(this).packages.apply {
+    }
+
   override fun onCreate() {
     super.onCreate()
   }
@@ -30,10 +36,16 @@ import android.app.Application
 import com.didichuxing.doraemonkit.DoKit
 import com.didichuxing.doraemonkit.aop.DokitPluginConfig
 import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor
+import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
+import com.facebook.react.ReactPackage
 import com.facebook.react.modules.network.OkHttpClientProvider
 
 class MainApplication : Application(), ReactApplication {
+  fun getPackages(): List<ReactPackage> =
+    PackageList(this).packages.apply {
+    }
+
   override fun onCreate() {
     super.onCreate()
     DokitPluginConfig.SWITCH_DOKIT_PLUGIN = true
@@ -92,6 +104,9 @@ describe('DoKit Expo config plugin', () => {
       application.match(/MobileDiagnosticsDoKit\.installLifecycleRestore\(this\)/g)
     ).toHaveLength(1)
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
+    expect(
+      application.match(/add\(MobileDiagnosticsNetworkPackage\(\)\)/g)
+    ).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
     expect(proguard.match(/-dontwarn coil\.\*\*/g)).toHaveLength(1)
     expect(
@@ -144,58 +159,27 @@ describe('DoKit Expo config plugin', () => {
     expect(launcherSource).not.toContain('Tipsy')
   })
 
-  it('generates an Android network kit with its own modern inspector', () => {
+  it('routes the Android Network kit to the shared React Native inspector', () => {
     const { renderMobileDiagnosticsDoKitSource, renderMobileDiagnosticsResources } = require(
       '../plugin/withDoKit.js'
     )
 
     const source = renderMobileDiagnosticsDoKitSource('com.example.app')
 
-    expect(source).toContain('MobileDiagnosticsNetworkFragment')
-    expect(source).toContain('NetworkManager.get().records')
+    expect(source).toContain('DestinationKit("network")')
+    expect(source).toContain(
+      'MobileDiagnosticsLauncher.openAfterPanelDismiss(activity, destination)'
+    )
     expect(source).toContain('dokit_sdk_performance_ck_network')
     expect(source.match(/GLOBAL_KITS\.values\.forEach/g)).toHaveLength(1)
     expect(source.match(/GLOBAL_SYSTEM_KITS\.values\.forEach/g)).toHaveLength(1)
-    expect(source).not.toContain('GLOBAL_KITS.values.any')
-    expect(source).toContain('MDKNetworkFilter')
-    expect(source).toContain('curlCommand')
-    expect(source).toContain('WindowInsetsCompat.Type.systemBars()')
-    expect(source).toContain('LinearLayout.LayoutParams(dp(44), dp(44))')
-    expect(source).toContain('override fun onBackPressed(): Boolean')
-    expect(source).toContain('finish()')
+    expect(source).not.toContain('MobileDiagnosticsNetworkFragment')
+    expect(source).not.toContain('BaseFragment')
     expect(source).not.toContain('NetWorkMonitorFragment')
     expect(source).not.toContain('Tipsy')
     expect(renderMobileDiagnosticsResources()).toContain(
       'name="mobile_diagnostics_network">Network'
     )
-  })
-
-  it('keeps the Android network inspector aligned with the iOS information hierarchy', () => {
-    const { renderMobileDiagnosticsDoKitSource } = require(
-      '../plugin/withDoKit.js'
-    )
-
-    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
-
-    expect(source).toContain('private fun summaryCard(')
-    expect(source).toContain('"Requests"')
-    expect(source).toContain('"Received"')
-    expect(source).toContain('"Capture"')
-    expect(source).toContain('addTextChangedListener')
-    expect(source).toContain('Search host, path, method, or status')
-    expect(source).toContain('private fun requestHost(')
-    expect(source).toContain('private fun requestPath(')
-    expect(source).toContain('private fun requestMetadata(')
-    expect(source).toContain('private enum class MDKNetworkDetailTab')
-    expect(source).toContain('"Request"')
-    expect(source).toContain('"Response"')
-    expect(source).toContain('private fun bodySection(')
-    expect(source).toContain('private fun iconButton(')
-    expect(source).toContain('private fun isDarkTheme(')
-    expect(source).toContain('androidx.appcompat.R.drawable.abc_ic_ab_back_material')
-    expect(source).toContain('androidx.appcompat.R.drawable.abc_ic_menu_copy_mtrl_am_alpha')
-    expect(source).toContain('setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_menu_search')
-    expect(source).toContain('trackTintList = captureTrackColors()')
   })
 
   it('restores the single DoKit entry across activity and inspector lifecycles', () => {
@@ -209,31 +193,29 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('application.registerActivityLifecycleCallbacks')
     expect(source).toContain('override fun onActivityResumed(activity: Activity)')
     expect(source).toContain('DoKit.show()')
-    expect(source).toContain('override fun onDestroyView()')
-    expect(source).toContain('private fun closeInspector()')
-    expect(source).toContain('header("Network", false) { closeInspector() }')
+    expect(source).toContain('DestinationKit("network")')
   })
 
-  it('throttles network updates and pages the filtered record set without losing totals', () => {
-    const { renderMobileDiagnosticsDoKitSource } = require(
-      '../plugin/withDoKit.js'
-    )
+  it('generates an opt-in Android bridge for exact DoKit captures', () => {
+    const {
+      renderMobileDiagnosticsNetworkModuleSource,
+      renderMobileDiagnosticsNetworkPackageSource,
+    } = require('../plugin/withDoKit.js')
+    const source = renderMobileDiagnosticsNetworkModuleSource('com.example.app')
+    const reactPackage =
+      renderMobileDiagnosticsNetworkPackageSource('com.example.app')
+    const nativeConfig = require('../react-native.config.js')
 
-    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
-
-    expect(source).toContain('private const val NETWORK_PAGE_SIZE = 100')
-    expect(source).toContain('private const val NETWORK_REFRESH_INTERVAL_MS = 500L')
-    expect(source).toContain('AtomicBoolean(false)')
-    expect(source).toContain('mainHandler.postDelayed(listRefreshRunnable, NETWORK_REFRESH_INTERVAL_MS)')
-    expect(source).not.toContain(
-      'mainHandler.post {\n        if (isAdded && selected == null) renderList()'
-    )
-    expect(source).toContain('val page = visible.take(visibleLimit)')
-    expect(source).toContain('showingLabel?.text = "Showing ${page.size} of ${visible.size} matching"')
-    expect(source).toContain('requestCountLabel?.text = records.size.toString()')
-    expect(source).toContain('text("Load older"')
-    expect(source).toContain('visibleLimit += NETWORK_PAGE_SIZE')
-    expect(source).toContain('page.forEach { record -> content.addView(requestCard(record)) }')
+    expect(source).toContain('NetworkManager.get().records')
+    expect(source).toContain('putArray("requestHeaders"')
+    expect(source).toContain('putString("requestBody"')
+    expect(source).toContain('putString("responseBody"')
+    expect(source).not.toContain('redact')
+    expect(reactPackage).toContain('MobileDiagnosticsNetworkModule')
+    expect(nativeConfig.dependency.platforms).toEqual({
+      android: null,
+      ios: null,
+    })
   })
 
   it('fails clearly when generated Android files have an unsupported shape', () => {

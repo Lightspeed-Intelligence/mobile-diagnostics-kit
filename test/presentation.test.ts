@@ -1,5 +1,6 @@
 import {
   initialDiagnosticsPresentation,
+  parseDiagnosticsDestination,
   reduceDiagnosticsPresentation,
 } from '../src/presentation'
 
@@ -25,5 +26,11 @@ describe('DoKit-owned diagnostics presentation', () => {
         { type: 'close' }
       )
     ).toEqual({ destination: 'storage', visible: false })
+  })
+
+  it('preserves the native Network route and rejects unknown routes', () => {
+    expect(parseDiagnosticsDestination('network')).toBe('network')
+    expect(parseDiagnosticsDestination('ota')).toBe('ota')
+    expect(parseDiagnosticsDestination('unknown')).toBe('storage')
   })
 })

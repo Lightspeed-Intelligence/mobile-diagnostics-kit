@@ -1,4 +1,4 @@
-export type DiagnosticsDestination = 'storage' | 'ota'
+export type DiagnosticsDestination = 'network' | 'storage' | 'ota'
 
 export interface DiagnosticsPresentation {
   destination: DiagnosticsDestination
@@ -27,5 +27,6 @@ export function reduceDiagnosticsPresentation(
 export function parseDiagnosticsDestination(
   value: unknown
 ): DiagnosticsDestination {
-  return value === 'ota' ? 'ota' : 'storage'
+  if (value === 'network' || value === 'ota') return value
+  return 'storage'
 }

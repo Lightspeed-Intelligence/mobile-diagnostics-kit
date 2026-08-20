@@ -10,6 +10,7 @@ import {
   type StorageInspector,
 } from '../storageInspector'
 import { mergeLabels, type DiagnosticsLabels } from './model'
+import { NetworkPanel } from './NetworkPanel'
 import { OtaPanel } from './OtaPanel'
 import { StoragePanel } from './StoragePanel'
 import { styles } from './theme'
@@ -101,6 +102,12 @@ export function DiagnosticsContent({
 
       <View accessibilityRole="tablist" style={styles.tabBar}>
         <TabButton
+          active={tab === 'network'}
+          label={labels.networkTab}
+          onPress={() => setTab('network')}
+          testID={`${testIDPrefix}.networkTabButton`}
+        />
+        <TabButton
           active={tab === 'storage'}
           label={labels.storageTab}
           onPress={() => setTab('storage')}
@@ -114,7 +121,12 @@ export function DiagnosticsContent({
         />
       </View>
 
-      {tab === 'storage' ? (
+      {tab === 'network' ? (
+        <NetworkPanel
+          labels={labels}
+          testIDPrefix={testIDPrefix}
+        />
+      ) : tab === 'storage' ? (
         <StoragePanel
           inspector={inspector}
           labels={labels}

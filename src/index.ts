@@ -20,6 +20,23 @@ export {
 } from './presentation'
 export { parseDiagnosticsFlag } from './buildGate'
 export {
+  createCurlCommand,
+  filterNetworkRequests,
+  formatBytes,
+  formatDuration,
+  formatNetworkBody,
+  isNetworkError,
+  networkResourceType,
+  type NetworkFilter,
+  type NetworkHeader,
+  type NetworkRequestSnapshot,
+  type NetworkResourceType,
+} from './networkDiagnostics'
+export {
+  nativeNetworkDiagnostics,
+  type NetworkDiagnosticsClient,
+} from './nativeNetworkDiagnostics'
+export {
   createOtaController,
   type OtaApplyResult,
   type OtaController,

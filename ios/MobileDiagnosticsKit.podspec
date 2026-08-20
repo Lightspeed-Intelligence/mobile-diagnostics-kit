@@ -14,4 +14,5 @@ Pod::Spec.new do |s|
   s.public_header_files = 'Sources/MobileDiagnostics.h'
   s.requires_arc = true
   s.dependency 'DoraemonKit/Core', '~> 3.1.7'
+  s.dependency 'React-Core'
 end

@@ -5,6 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, MDKDiagnosticsDestination) {
   MDKDiagnosticsDestinationLocalState = 0,
   MDKDiagnosticsDestinationExpoUpdate = 1,
+  MDKDiagnosticsDestinationNetwork = 2,
 };
 
 typedef void (^MDKDiagnosticsOpenHandler)(

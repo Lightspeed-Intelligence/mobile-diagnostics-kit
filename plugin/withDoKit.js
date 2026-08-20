@@ -23,6 +23,10 @@ const LIFECYCLE_RESTORE_INSTALL =
   'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
 const GENERATED_LAUNCHER_SOURCE_NAME = 'MobileDiagnosticsLauncher.kt'
+const GENERATED_NETWORK_MODULE_SOURCE_NAME =
+  'MobileDiagnosticsNetworkModule.kt'
+const GENERATED_NETWORK_PACKAGE_SOURCE_NAME =
+  'MobileDiagnosticsNetworkPackage.kt'
 const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
 const GENERATED_EXPO_UPDATE_ICON_NAME = 'mobile_diagnostics_expo_update.xml'
 const GENERATED_ANDROID_TEMPLATE = path.join(
@@ -34,6 +38,16 @@ const GENERATED_LAUNCHER_TEMPLATE = path.join(
   __dirname,
   'android',
   'MobileDiagnosticsLauncher.kt.template'
+)
+const GENERATED_NETWORK_MODULE_TEMPLATE = path.join(
+  __dirname,
+  'android',
+  'MobileDiagnosticsNetworkModule.kt.template'
+)
+const GENERATED_NETWORK_PACKAGE_TEMPLATE = path.join(
+  __dirname,
+  'android',
+  'MobileDiagnosticsNetworkPackage.kt.template'
 )
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
 const PROGUARD_RULES = [
@@ -84,15 +98,21 @@ function addDoKitToMainApplication(contents) {
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
   const next = DOKIT_IMPORTS.reduce(addImport, contents)
   if (next.includes(DOKIT_INIT_MARKER)) {
-    return addNetworkMonitorStart(next, eol)
+    return addMobileDiagnosticsNetworkPackage(
+      addNetworkMonitorStart(next, eol),
+      eol
+    )
   }
   if (next.includes(LEGACY_DOKIT_INIT)) {
     const legacyLine = new RegExp(
       `^(\\s*)${LEGACY_DOKIT_INIT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
       'm'
     )
-    return next.replace(legacyLine, (_line, indent) =>
-      renderDoKitInitialization(indent, eol)
+    return addMobileDiagnosticsNetworkPackage(
+      next.replace(legacyLine, (_line, indent) =>
+        renderDoKitInitialization(indent, eol)
+      ),
+      eol
     )
   }
   const marker = /^(\s*)super\.onCreate\(\)\s*$/m
@@ -115,7 +135,25 @@ function addDoKitToMainApplication(contents) {
     `${indent}    .build()`,
     `${indent}}`,
   ].join(eol)
-  return next.replace(marker, `$&${eol}${block}`)
+  return addMobileDiagnosticsNetworkPackage(
+    next.replace(marker, `$&${eol}${block}`),
+    eol
+  )
+}
+
+function addMobileDiagnosticsNetworkPackage(contents, eol) {
+  const registration = 'add(MobileDiagnosticsNetworkPackage())'
+  if (contents.includes(registration)) return contents
+
+  const marker = /^(\s*)PackageList\(this\)\.packages\.apply\s*\{\s*$/m
+  const match = contents.match(marker)
+  if (!match || match.index === undefined) {
+    throw new Error(
+      'withDoKit: MainApplication PackageList(this).packages.apply block not found'
+    )
+  }
+  const insertAt = match.index + match[0].length
+  return `${contents.slice(0, insertAt)}${eol}${match[1]}  ${registration}${contents.slice(insertAt)}`
 }
 
 function renderDoKitInitialization(indent, eol) {
@@ -175,6 +213,16 @@ function renderMobileDiagnosticsDoKitSource(packageName) {
 
 function renderMobileDiagnosticsLauncherSource(packageName) {
   const template = fs.readFileSync(GENERATED_LAUNCHER_TEMPLATE, 'utf8')
+  return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
+}
+
+function renderMobileDiagnosticsNetworkModuleSource(packageName) {
+  const template = fs.readFileSync(GENERATED_NETWORK_MODULE_TEMPLATE, 'utf8')
+  return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
+}
+
+function renderMobileDiagnosticsNetworkPackageSource(packageName) {
+  const template = fs.readFileSync(GENERATED_NETWORK_PACKAGE_TEMPLATE, 'utf8')
   return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
 }
 
@@ -274,6 +322,20 @@ function withDoKit(config) {
       )
       writeTransformedFile(
         path.join(
+          path.dirname(mainApplication),
+          GENERATED_NETWORK_MODULE_SOURCE_NAME
+        ),
+        () => renderMobileDiagnosticsNetworkModuleSource(packageName)
+      )
+      writeTransformedFile(
+        path.join(
+          path.dirname(mainApplication),
+          GENERATED_NETWORK_PACKAGE_SOURCE_NAME
+        ),
+        () => renderMobileDiagnosticsNetworkPackageSource(packageName)
+      )
+      writeTransformedFile(
+        path.join(
           projectRoot,
           'app',
           'src',
@@ -313,6 +375,10 @@ module.exports.renderMobileDiagnosticsDoKitSource =
   renderMobileDiagnosticsDoKitSource
 module.exports.renderMobileDiagnosticsLauncherSource =
   renderMobileDiagnosticsLauncherSource
+module.exports.renderMobileDiagnosticsNetworkModuleSource =
+  renderMobileDiagnosticsNetworkModuleSource
+module.exports.renderMobileDiagnosticsNetworkPackageSource =
+  renderMobileDiagnosticsNetworkPackageSource
 module.exports.renderMobileDiagnosticsResources = renderMobileDiagnosticsResources
 module.exports.renderMobileDiagnosticsExpoUpdateIcon =
   renderMobileDiagnosticsExpoUpdateIcon

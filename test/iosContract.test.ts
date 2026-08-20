@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 function read(relativePath: string): string {
@@ -6,29 +6,22 @@ function read(relativePath: string): string {
 }
 
 describe('iOS DoKit wrapper', () => {
-  it('owns the pinned DoKit dependency from a public podspec', () => {
+  it('owns pinned DoKit and React bridge dependencies from a public podspec', () => {
     const podspec = read('ios/MobileDiagnosticsKit.podspec')
 
     expect(podspec).toContain("s.name = 'MobileDiagnosticsKit'")
     expect(podspec).toContain("s.dependency 'DoraemonKit/Core', '~> 3.1.7'")
+    expect(podspec).toContain("s.dependency 'React-Core'")
     expect(podspec).toContain(
       'https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit'
     )
   })
 
-  it('imports the DoKit cache manager used by the network replacement', () => {
-    const source = read('ios/Sources/MobileDiagnostics.m')
-
-    expect(source).toContain(
-      '#import <DoraemonKit/DoraemonCacheManager.h>'
-    )
-  })
-
-  it('disables DoKit telemetry before installing the on-device entry', () => {
+  it('disables DoKit telemetry before installing on-device entries', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
     const disableUsageUpload = source.indexOf('DoraemonStatisticsUtil')
     const disableTelemetry = source.indexOf('method_setImplementation')
-    const installDoKit = source.indexOf('DoraemonManager shareInstance')
+    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
 
     expect(disableUsageUpload).toBeGreaterThan(-1)
     expect(disableTelemetry).toBeGreaterThan(-1)
@@ -38,219 +31,66 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('dispatch_once')
   })
 
-  it('registers local-state and Expo-update destinations inside DoKit', () => {
+  it('registers all three destinations inside DoKit', () => {
     const header = read('ios/Sources/MobileDiagnostics.h')
     const source = read('ios/Sources/MobileDiagnostics.m')
     const registerLocalState = source.indexOf('@"Local State"')
     const registerExpoUpdate = source.indexOf('@"Expo Update"')
-    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
+    const registerNetwork = source.indexOf('@"Network"')
 
     expect(header).toContain('MDKDiagnosticsDestinationLocalState')
     expect(header).toContain('MDKDiagnosticsDestinationExpoUpdate')
-    expect(header).toContain('installWithOpenHandler')
+    expect(header).toContain('MDKDiagnosticsDestinationNetwork')
     expect(registerLocalState).toBeGreaterThan(-1)
     expect(registerExpoUpdate).toBeGreaterThan(registerLocalState)
-    expect(installDoKit).toBeGreaterThan(registerExpoUpdate)
+    expect(registerNetwork).toBeGreaterThan(-1)
     expect(source).toContain('hiddenHomeWindow')
     expect(source).toContain('icon:@"doraemon_file_sync"')
-    expect(source).not.toContain('icon:@"doraemon_app_setting"')
   })
 
-  it('replaces DoKit’s legacy network page with the public diagnostics surface', () => {
+  it('replaces DoKit legacy Network with the React Native destination', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
-
-    expect(source).toContain('DoraemonNetFlowPlugin')
-    expect(source).toContain(
-      '#import <DoraemonKit/DoraemonHomeWindow.h>'
-    )
-    expect(source).toContain('removePluginWithPluginName')
-    expect(source).toContain('saveKitManagerData')
-    expect(source).toContain('MDKNetworkPlugin')
-
     const removeLegacy = source.indexOf('removePluginWithPluginName')
     const refreshDoKitCache = source.indexOf('saveKitManagerData')
     const registerReplacement = source.indexOf('pluginName:@"MDKNetworkPlugin"')
+
+    expect(source).toContain('DoraemonNetFlowPlugin')
     expect(refreshDoKitCache).toBeGreaterThan(removeLegacy)
     expect(registerReplacement).toBeGreaterThan(refreshDoKitCache)
-    expect(networkSource).toContain('DoraemonNetFlowDataSource')
-    expect(networkSource).toContain(
-      '#import <DoraemonKit/DoraemonCacheManager.h>'
-    )
-    expect(networkSource).toContain(
-      '#import <DoraemonKit/DoraemonHomeWindow.h>'
-    )
-    expect(networkSource).toContain(
-      '#import <DoraemonKit/DoraemonNetFlowDataSource.h>'
-    )
-    expect(networkSource).toContain(
-      '#import <DoraemonKit/DoraemonNetFlowHttpModel.h>'
-    )
-    expect(networkSource).toContain(
-      '#import <DoraemonKit/DoraemonNetFlowManager.h>'
-    )
-    expect(networkSource).not.toContain('NSString *copyContent')
-    expect(networkSource).toContain('MDKNetworkRequestCell')
-    expect(networkSource).toContain('MDKNetworkDetailViewController')
-    expect(networkSource).toContain('Network')
-    expect(networkSource).toContain('Network list')
-    expect(networkSource).toContain('Network summary')
-    expect(networkSource).toContain('UIContentSizeCategoryDidChangeNotification')
+    expect(source).toContain('openHandler(MDKDiagnosticsDestinationNetwork)')
+    expect(source).not.toContain('MDKNetworkInspectorViewController')
+    expect(
+      existsSync(
+        path.resolve(
+          process.cwd(),
+          'ios/Sources/MDKNetworkInspectorViewController.m'
+        )
+      )
+    ).toBe(false)
   })
 
-  it('preserves DoKit network data semantics in the custom presentation', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
+  it('exports complete native request snapshots without redaction', () => {
+    const source = read('ios/Sources/MDKNetworkDiagnosticsModule.m')
 
-    // Transport errors are stored by DoKit as localized, non-numeric status
-    // strings. They must remain visible in the Errors filter and summary.
-    expect(networkSource).toContain('MDKParseHTTPStatusCode')
-    expect(networkSource).toContain('scanner.isAtEnd')
-    expect(networkSource).toContain('return !MDKParseHTTPStatusCode')
-
-    // Display formatting must not replace the exact captured body copied by
-    // the tester, and binary responses must not be mislabeled as empty.
-    expect(networkSource).toContain('displayContent:')
-    expect(networkSource).toContain('copyContent:')
-    expect(networkSource).toContain('MDKResponseBodyDisplay')
-    expect(networkSource).toContain('Binary response body')
-    expect(networkSource).toContain('self.model.responseBody')
-
-    // DoKit clears its data source when capture is disabled; the visible
-    // snapshot must be refreshed in the same action.
-    const captureChanged = networkSource.indexOf(
-      '- (void)captureSwitchChanged'
-    )
-    const refreshAfterCapture = networkSource.indexOf(
-      '[self refreshRequests]',
-      captureChanged
-    )
-    expect(refreshAfterCapture).toBeGreaterThan(captureChanged)
+    expect(source).toContain('RCT_EXPORT_MODULE(MobileDiagnosticsNetwork)')
+    expect(source).toContain('DoraemonNetFlowDataSource')
+    expect(source).toContain('model.request.allHTTPHeaderFields')
+    expect(source).toContain('model.requestBody')
+    expect(source).toContain('model.responseBody')
+    expect(source).toContain('allHeaderFields')
+    expect(source).toContain('@"responseBodyBinary"')
+    expect(source).not.toContain('redact')
   })
 
-  it('keeps request chips compact and the DoKit entry clear of inspector controls', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
+  it('exposes clear, capture, and copy operations to React Native', () => {
+    const source = read('ios/Sources/MDKNetworkDiagnosticsModule.m')
 
-    expect(networkSource).toContain(
-      '[_methodLabel setContentHuggingPriority:UILayoutPriorityRequired'
-    )
-
-    const detailController = networkSource.indexOf(
-      '@implementation MDKNetworkDetailViewController'
-    )
-    const listController = networkSource.indexOf(
-      '@implementation MDKNetworkInspectorViewController'
-    )
-    const detailSource = networkSource.slice(detailController, listController)
-    const listSource = networkSource.slice(listController)
-
-    expect(detailSource).toContain(
-      '[[DoraemonManager shareInstance] hiddenDoraemon]'
-    )
-    expect(listSource).toContain(
-      '[[DoraemonManager shareInstance] hiddenDoraemon]'
-    )
-    expect(listSource).toContain(
-      '[[DoraemonManager shareInstance] showDoraemon]'
-    )
-  })
-
-  it('classifies captured requests by response type before request semantics', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
-
-    expect(networkSource).toContain('MDKNetworkResourceTypeFetch')
-    expect(networkSource).toContain('MDKNetworkResourceTypeImage')
-    expect(networkSource).toContain('MDKNetworkResourceTypeMedia')
-    expect(networkSource).toContain('MDKNetworkResourceTypeOther')
-
-    const classifierStart = networkSource.indexOf(
-      'MDKResourceTypeForModel(DoraemonNetFlowHttpModel *model)'
-    )
-    const classifierEnd = networkSource.indexOf(
-      '#pragma mark - Request cell',
-      classifierStart
-    )
-    const classifier = networkSource.slice(classifierStart, classifierEnd)
-    const imageCheck = classifier.indexOf('hasPrefix:@"image/"')
-    const videoCheck = classifier.indexOf('hasPrefix:@"video/"')
-    const audioCheck = classifier.indexOf('hasPrefix:@"audio/"')
-    const fetchFallback = classifier.indexOf('MDKNetworkResourceTypeFetch')
-
-    expect(classifierStart).toBeGreaterThan(-1)
-    expect(imageCheck).toBeGreaterThan(-1)
-    expect(videoCheck).toBeGreaterThan(imageCheck)
-    expect(audioCheck).toBeGreaterThan(videoCheck)
-    expect(fetchFallback).toBeGreaterThan(audioCheck)
-    expect(classifier).toContain('pathExtension.lowercaseString')
-    expect(classifier).toContain('containsString:@"+json"')
-    expect(classifier).toContain('HTTPMethod.uppercaseString')
-  })
-
-  it('offers a horizontally scrollable DevTools-style type filter', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
-
-    expect(networkSource).toContain(
-      'initWithItems:@[ @"All", @"Fetch", @"Image", @"Media", @"Other", @"Errors" ]'
-    )
-    expect(networkSource).toContain('filterScrollView')
-    expect(networkSource).toContain('showsHorizontalScrollIndicator = NO')
-    expect(networkSource).toContain('MDKResourceTypeForModel(model)')
-    expect(networkSource).toContain('mobileDiagnostics.network.filterControl')
-    expect(networkSource).toContain('self.accessibilityValue = MDKResourceTypeTitle')
-  })
-
-  it('presents request details as structured DevTools-style sections', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
-
-    expect(networkSource).toContain('MDKNetworkKeyValueSectionView')
-    expect(networkSource).toContain('MDKHeaderRows')
-    expect(networkSource).toContain('@"General"')
-    expect(networkSource).toContain('@"Request Headers"')
-    expect(networkSource).toContain('@"Payload"')
-    expect(networkSource).toContain('@"Response Headers"')
-    expect(networkSource).toContain('@"Response Body"')
-    expect(networkSource).toContain('initiallyExpanded:NO')
-    expect(networkSource).toContain('toggleExpanded')
-    expect(networkSource).toContain('MDKAttributedBody')
-    expect(networkSource).toContain(
-      'initWithArrangedSubviews:@[heading, _divider, _rowsStack]'
-    )
-
-    // This is an on-device QA tool: display and copy preserve the raw capture.
-    expect(networkSource).not.toContain('MDKRedact')
-    expect(networkSource).toContain('copyContent:body')
-  })
-
-  it('copies the full captured request as a shell-safe cURL command', () => {
-    const networkSource = read(
-      'ios/Sources/MDKNetworkInspectorViewController.m'
-    )
-
-    expect(networkSource).toContain('MDKShellQuotedString')
-    expect(networkSource).toContain('MDKCurlCommandForModel')
-    expect(networkSource).toContain('stringByReplacingOccurrencesOfString:@"\'"')
-    expect(networkSource).toContain('@"  -X %@"')
-    expect(networkSource).toContain('@"  -H %@"')
-    expect(networkSource).toContain('@"  --data-raw %@"')
-    expect(networkSource).toContain('model.request.allHTTPHeaderFields')
-    expect(networkSource).toContain('model.requestBody')
-    expect(networkSource).toContain(
-      '@"mobileDiagnostics.network.detail.copyCurlButton"'
-    )
-    expect(networkSource).toContain(
-      'UIPasteboard.generalPasteboard.string = MDKCurlCommandForModel(self.model);'
-    )
-    expect(networkSource).not.toContain('MDKCurlRedact')
+    expect(source).toContain('clearRequests')
+    expect(source).toContain('setCaptureEnabled')
+    expect(source).toContain('isCaptureEnabled')
+    expect(source).toContain('copyToClipboard')
+    expect(source).toContain('saveNetFlowSwitch:enabled')
+    expect(source).toContain('canInterceptNetFlow:enabled')
+    expect(source).toContain('UIPasteboard.generalPasteboard.string')
   })
 })

@@ -14,7 +14,7 @@ describe('Android DoKit tool launch contract', () => {
     const source = renderMobileDiagnosticsDoKitSource('com.example.app')
     const destinationKit = source.slice(
       source.indexOf('internal object MobileDiagnosticsDoKit'),
-      source.indexOf('private enum class MDKNetworkFilter')
+      source.length
     )
     const launcher = renderMobileDiagnosticsLauncherSource('com.example.app')
 

@@ -1,9 +1,7 @@
 #import "MobileDiagnostics.h"
-#import "MDKNetworkInspectorViewController.h"
 
 #import <DoraemonKit/DoraemonKit.h>
 #import <DoraemonKit/DoraemonCacheManager.h>
-#import <DoraemonKit/DoraemonHomeWindow.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
 
@@ -53,7 +51,8 @@ static NSString *MDKModuleContainingPlugin(DoraemonManager *manager,
   return nil;
 }
 
-static void MDKReplaceLegacyNetworkPlugin(DoraemonManager *manager) {
+static void MDKReplaceLegacyNetworkPlugin(
+    DoraemonManager *manager, MDKDiagnosticsOpenHandler openHandler) {
   NSString *legacyPlugin = @"DoraemonNetFlowPlugin";
   NSString *legacyModule = MDKModuleContainingPlugin(manager, legacyPlugin);
   if (legacyModule.length > 0) {
@@ -72,8 +71,10 @@ static void MDKReplaceLegacyNetworkPlugin(DoraemonManager *manager) {
                    pluginName:@"MDKNetworkPlugin"
                       atModule:@"Application Tools"
                         handle:^(__unused NSDictionary *itemData) {
-    [DoraemonHomeWindow openPlugin:
-                            [[MDKNetworkInspectorViewController alloc] init]];
+    [manager hiddenHomeWindow];
+    if (openHandler != nil) {
+      openHandler(MDKDiagnosticsDestinationNetwork);
+    }
   }];
 }
 
@@ -116,7 +117,7 @@ static void MDKReplaceLegacyNetworkPlugin(DoraemonManager *manager) {
     }];
 
     [[DoraemonManager shareInstance] install];
-    MDKReplaceLegacyNetworkPlugin(manager);
+    MDKReplaceLegacyNetworkPlugin(manager, diagnosticsOpenHandler);
   });
 }
 

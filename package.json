@@ -38,6 +38,7 @@
     "src",
     "plugin",
     "ios",
+    "react-native.config.js",
     "app.plugin.js",
     "README.md",
     "LICENSE"

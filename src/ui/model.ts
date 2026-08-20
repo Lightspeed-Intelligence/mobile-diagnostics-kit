@@ -5,6 +5,7 @@ export interface DiagnosticsLabels {
   openPanel: string
   closePanel: string
   eyebrow: string
+  networkTab: string
   storageTab: string
   otaTab: string
   securityTitle: string
@@ -49,12 +50,35 @@ export interface DiagnosticsLabels {
   otaFailed: string
   networkTitle: string
   networkBody: string
+  networkSearchPlaceholder: string
+  networkRefresh: string
+  networkClear: string
+  networkCapture: string
+  networkRequests: string
+  networkErrors: string
+  networkReceived: string
+  networkShowing: (visible: number, total: number) => string
+  networkEmptyTitle: string
+  networkEmptyBody: string
+  networkUnavailable: string
+  networkRequestTab: string
+  networkResponseTab: string
+  networkCopyCurl: string
+  networkCopyBody: string
+  networkClearConfirmTitle: string
+  networkClearConfirmBody: string
+  networkGeneral: string
+  networkRequestHeaders: string
+  networkPayload: string
+  networkResponseHeaders: string
+  networkResponseBody: string
 }
 
 export const DEFAULT_LABELS: DiagnosticsLabels = {
   openPanel: 'Open diagnostics',
   closePanel: 'Close diagnostics',
   eyebrow: 'ON-DEVICE DIAGNOSTICS',
+  networkTab: 'Network',
   storageTab: 'Local state',
   otaTab: 'Expo update',
   securityTitle: 'Private by default',
@@ -104,7 +128,29 @@ export const DEFAULT_LABELS: DiagnosticsLabels = {
   otaFailed: 'Update failed; provider details remain hidden',
   networkTitle: 'Network inspection',
   networkBody:
-    'Use the native DoKit entry to inspect captured requests. This panel adds allow-listed local state and Expo update controls.',
+    'Captured by the native DoKit engine and presented locally. Request and response contents are never uploaded by this package.',
+  networkSearchPlaceholder: 'Search host, path, method, or status',
+  networkRefresh: 'Refresh',
+  networkClear: 'Clear',
+  networkCapture: 'Capture',
+  networkRequests: 'Requests',
+  networkErrors: 'Errors',
+  networkReceived: 'Received',
+  networkShowing: (visible, total) => `Showing ${visible} of ${total}`,
+  networkEmptyTitle: 'No requests captured',
+  networkEmptyBody: 'Use the app, then return here to inspect requests.',
+  networkUnavailable: 'The native network capture module is unavailable in this build.',
+  networkRequestTab: 'Request',
+  networkResponseTab: 'Response',
+  networkCopyCurl: 'Copy cURL',
+  networkCopyBody: 'Copy body',
+  networkClearConfirmTitle: 'Clear captured requests?',
+  networkClearConfirmBody: 'This removes the current in-memory request list.',
+  networkGeneral: 'General',
+  networkRequestHeaders: 'Request Headers',
+  networkPayload: 'Payload',
+  networkResponseHeaders: 'Response Headers',
+  networkResponseBody: 'Response Body',
 }
 
 export type ApplyState = 'idle' | 'working' | OtaApplyResult['status']
