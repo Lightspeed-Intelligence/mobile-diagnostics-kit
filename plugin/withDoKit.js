@@ -21,6 +21,11 @@ const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
 const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
+const GENERATED_ANDROID_TEMPLATE = path.join(
+  __dirname,
+  'android',
+  'MobileDiagnosticsDoKit.kt.template'
+)
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
 const PROGUARD_RULE = '-keep class com.didichuxing.doraemonkit.** { *; }'
 
@@ -104,13 +109,18 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
+    `${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`,
     `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
     `${indent}${NETWORK_MONITOR_START}`,
   ].join(eol)
 }
 
 function addNetworkMonitorStart(contents, eol) {
-  if (contents.includes(NETWORK_MONITOR_START)) return contents
+  const needsNetworkStart = !contents.includes(NETWORK_MONITOR_START)
+  const needsNetworkCleanup = !contents.includes(
+    'MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()'
+  )
+  if (!needsNetworkStart && !needsNetworkCleanup) return contents
 
   const markerIndex = contents.indexOf(DOKIT_INIT_MARKER)
   const builderIndex = contents.lastIndexOf('DoKit.Builder(this)', markerIndex)
@@ -123,83 +133,28 @@ function addNetworkMonitorStart(contents, eol) {
   const indent = contents.slice(builderLineStart, builderIndex)
   const buildLineEnd = contents.indexOf(eol, buildIndex)
   const insertAt = buildLineEnd < 0 ? contents.length : buildLineEnd
-  const start = [
-    `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
-    `${indent}${NETWORK_MONITOR_START}`,
-  ].join(eol)
-  return `${contents.slice(0, insertAt)}${eol}${start}${contents.slice(insertAt)}`
+  const lines = []
+  if (needsNetworkCleanup) {
+    lines.push(`${indent}MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()`)
+  }
+  if (needsNetworkStart) {
+    lines.push(
+      `${indent}// DoKit's storage permission gate is obsolete on Android 13+.`,
+      `${indent}${NETWORK_MONITOR_START}`
+    )
+  }
+  return `${contents.slice(0, insertAt)}${eol}${lines.join(eol)}${contents.slice(insertAt)}`
 }
 
 function renderMobileDiagnosticsDoKitSource(packageName) {
-  return `package ${packageName}
-
-import android.app.Activity
-import android.content.Context
-import android.widget.Toast
-import com.didichuxing.doraemonkit.DoKit
-import com.didichuxing.doraemonkit.kit.AbstractKit
-import com.facebook.react.ReactApplication
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.modules.core.DeviceEventManagerModule
-import java.util.LinkedHashMap
-
-internal object MobileDiagnosticsDoKit {
-  private const val OPEN_EVENT = "mobile-diagnostics-kit.open"
-
-  fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
-    "Application Tools" to listOf(
-      DestinationKit("storage"),
-      DestinationKit("ota"),
-    ),
-  )
-
-  private class DestinationKit(
-    private val destination: String,
-  ) : AbstractKit() {
-    override val name: Int
-      get() = when (destination) {
-      "ota" -> R.string.mobile_diagnostics_expo_update
-      else -> R.string.mobile_diagnostics_local_state
-    }
-
-    override val icon: Int
-      get() = when (destination) {
-      "ota" -> android.R.drawable.ic_popup_sync
-      else -> android.R.drawable.ic_menu_edit
-    }
-
-    override fun onAppInit(context: Context?) = Unit
-
-    override fun onClickWithReturn(activity: Activity): Boolean {
-      val reactApplication = activity.application as? ReactApplication
-      val reactContext = reactApplication?.reactHost?.currentReactContext
-        ?: reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext
-      if (reactContext == null) {
-        Toast.makeText(
-          activity,
-          R.string.mobile_diagnostics_runtime_unavailable,
-          Toast.LENGTH_SHORT,
-        ).show()
-        return false
-      }
-
-      val payload = Arguments.createMap().apply {
-        putString("destination", destination)
-      }
-      reactContext
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(OPEN_EVENT, payload)
-      DoKit.hideToolPanel()
-      return true
-    }
-  }
-}
-`
+  const template = fs.readFileSync(GENERATED_ANDROID_TEMPLATE, 'utf8')
+  return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
 }
 
 function renderMobileDiagnosticsResources() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="mobile_diagnostics_network">Network</string>
   <string name="mobile_diagnostics_local_state">Local State</string>
   <string name="mobile_diagnostics_expo_update">Expo Update</string>
   <string name="mobile_diagnostics_runtime_unavailable">Diagnostics runtime is not ready</string>

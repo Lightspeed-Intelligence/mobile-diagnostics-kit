@@ -83,6 +83,7 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
+    expect(application).toContain('MobileDiagnosticsDoKit.scheduleNetworkKitCleanup()')
     expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
     expect(proguard.match(/com\.didichuxing\.doraemonkit/g)).toHaveLength(1)
   })
@@ -98,6 +99,7 @@ describe('DoKit Expo config plugin', () => {
       'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
+    expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
   })
 
   it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {
@@ -117,10 +119,37 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('mobile-diagnostics-kit.open')
     expect(source).toContain('"storage"')
     expect(source).toContain('"ota"')
+    expect(source).toContain('"network"')
     expect(source).toContain('RCTDeviceEventEmitter')
     expect(source).toContain('reactApplication?.reactHost?.currentReactContext')
     expect(source).toContain('reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext')
     expect(source).not.toContain('Tipsy')
+  })
+
+  it('generates an Android network kit with its own modern inspector', () => {
+    const { renderMobileDiagnosticsDoKitSource, renderMobileDiagnosticsResources } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('MobileDiagnosticsNetworkFragment')
+    expect(source).toContain('NetworkManager.get().records')
+    expect(source).toContain('dokit_sdk_performance_ck_network')
+    expect(source.match(/GLOBAL_KITS\.values\.forEach/g)).toHaveLength(1)
+    expect(source.match(/GLOBAL_SYSTEM_KITS\.values\.forEach/g)).toHaveLength(1)
+    expect(source).not.toContain('GLOBAL_KITS.values.any')
+    expect(source).toContain('MDKNetworkFilter')
+    expect(source).toContain('curlCommand')
+    expect(source).toContain('WindowInsetsCompat.Type.systemBars()')
+    expect(source).toContain('LinearLayout.LayoutParams(dp(96), dp(56))')
+    expect(source).toContain('override fun onBackPressed(): Boolean')
+    expect(source).toContain('finish()')
+    expect(source).not.toContain('NetWorkMonitorFragment')
+    expect(source).not.toContain('Tipsy')
+    expect(renderMobileDiagnosticsResources()).toContain(
+      'name="mobile_diagnostics_network">Network'
+    )
   })
 
   it('fails clearly when generated Android files have an unsupported shape', () => {
