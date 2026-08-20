@@ -118,7 +118,7 @@ export function MobileDiagnosticsScreen({
           reloadAfterFetch={contentProps.reloadAfterFetch ?? true}
           storage={contentProps.storage}
           testIDPrefix={testIDPrefix}
-          title={contentProps.title ?? 'Developer Tools'}
+          title={contentProps.title}
           updates={contentProps.updates}
         />
       </SafeAreaView>

@@ -15,7 +15,7 @@ describe('cross-platform React Native network inspector', () => {
 
     expect(presentation).toContain("'network' | 'storage' | 'ota'")
     expect(content).toContain("import { NetworkPanel } from './NetworkPanel'")
-    expect(content).toContain("tab === 'network'")
+    expect(content).toContain("destination === 'network'")
     expect(content).toContain('<NetworkPanel')
     expect(panel).toContain('FlatList')
     expect(detail).toContain('createCurlCommand(request)')

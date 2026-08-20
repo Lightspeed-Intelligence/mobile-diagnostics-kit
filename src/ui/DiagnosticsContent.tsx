@@ -25,7 +25,7 @@ export interface DiagnosticsContentProps {
   reloadAfterFetch: boolean
   storage?: MMKVStorageLike
   testIDPrefix: string
-  title: string
+  title?: string
   updates?: UpdatesLike
 }
 
@@ -42,10 +42,14 @@ export function DiagnosticsContent({
   title,
   updates,
 }: DiagnosticsContentProps) {
-  const [tab, setTab] = useState<DiagnosticsDestination>(destination)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [snapshots, setSnapshots] = useState<StorageEntrySnapshot[]>([])
   const labels = useMemo(() => mergeLabels(labelOverrides), [labelOverrides])
+  const destinationTitle = {
+    network: labels.networkTab,
+    ota: labels.otaTab,
+    storage: labels.storageTab,
+  }[destination]
 
   const inspector = useMemo<StorageInspector | null>(() => {
     if (!storage) return null
@@ -70,19 +74,14 @@ export function DiagnosticsContent({
     }
   }, [inspector])
 
-  useEffect(() => setTab(destination), [destination])
   useEffect(() => {
     if (active) refresh()
   }, [active, refresh])
-  useEffect(() => setSelectedKey(null), [entries, storage])
+  useEffect(() => setSelectedKey(null), [destination, entries, storage])
 
   return (
     <>
       <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>{labels.eyebrow}</Text>
-          <Text style={styles.title}>{title}</Text>
-        </View>
         {onClose ? (
           <Pressable
             accessibilityLabel={labels.closePanel}
@@ -95,38 +94,21 @@ export function DiagnosticsContent({
             ]}
             testID={`${testIDPrefix}.closeButton`}
           >
-            <Text style={styles.closeText}>×</Text>
+            <Text style={styles.closeText}>‹</Text>
           </Pressable>
         ) : null}
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>{labels.eyebrow}</Text>
+          <Text style={styles.title}>{title ?? destinationTitle}</Text>
+        </View>
       </View>
 
-      <View accessibilityRole="tablist" style={styles.tabBar}>
-        <TabButton
-          active={tab === 'network'}
-          label={labels.networkTab}
-          onPress={() => setTab('network')}
-          testID={`${testIDPrefix}.networkTabButton`}
-        />
-        <TabButton
-          active={tab === 'storage'}
-          label={labels.storageTab}
-          onPress={() => setTab('storage')}
-          testID={`${testIDPrefix}.storageTabButton`}
-        />
-        <TabButton
-          active={tab === 'ota'}
-          label={labels.otaTab}
-          onPress={() => setTab('ota')}
-          testID={`${testIDPrefix}.otaTabButton`}
-        />
-      </View>
-
-      {tab === 'network' ? (
+      {destination === 'network' ? (
         <NetworkPanel
           labels={labels}
           testIDPrefix={testIDPrefix}
         />
-      ) : tab === 'storage' ? (
+      ) : destination === 'storage' ? (
         <StoragePanel
           inspector={inspector}
           labels={labels}
@@ -144,35 +126,5 @@ export function DiagnosticsContent({
         />
       )}
     </>
-  )
-}
-
-function TabButton({
-  active,
-  label,
-  onPress,
-  testID,
-}: {
-  active: boolean
-  label: string
-  onPress: () => void
-  testID: string
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.tab,
-        active && styles.tabActive,
-        pressed && styles.pressed,
-      ]}
-      testID={testID}
-    >
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>
-        {label}
-      </Text>
-    </Pressable>
   )
 }

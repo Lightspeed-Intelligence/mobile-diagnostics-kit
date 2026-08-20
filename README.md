@@ -87,7 +87,7 @@ launcher: DoKit is the only entry point.
 
 `storage` is structural and works with an MMKV instance that implements the
 small `MMKVStorageLike` interface. A non-Expo React Native app may omit
-`updates`; the OTA tab will report that updates are unsupported.
+`updates`; the Expo Update page will report that updates are unsupported.
 
 ### Storage policy
 

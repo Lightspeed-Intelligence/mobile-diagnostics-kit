@@ -131,7 +131,7 @@ export const DEFAULT_LABELS: DiagnosticsLabels = {
     'Captured by the native DoKit engine and presented locally. Request and response contents are never uploaded by this package.',
   networkSearchPlaceholder: 'Search host, path, method, or status',
   networkRefresh: 'Refresh',
-  networkClear: 'Clear',
+  networkClear: 'Clear requests',
   networkCapture: 'Capture',
   networkRequests: 'Requests',
   networkErrors: 'Errors',

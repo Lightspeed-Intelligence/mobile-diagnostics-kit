@@ -121,16 +121,23 @@ export function NetworkPanel({
     }
   }
 
-  const clearRequests = () => {
+  const clearCapturedRequests = async () => {
+    try {
+      await client.clearRequests()
+      await refresh()
+    } catch {
+      setError(labels.operationFailedBody)
+    }
+  }
+
+  const confirmClearRequests = () => {
     Alert.alert(
       labels.networkClearConfirmTitle,
       labels.networkClearConfirmBody,
       [
         { text: labels.cancel, style: 'cancel' },
         {
-          onPress: () => {
-            void client.clearRequests().then(() => refresh())
-          },
+          onPress: () => void clearCapturedRequests(),
           style: 'destructive',
           text: labels.networkClear,
         },
@@ -175,6 +182,7 @@ export function NetworkPanel({
 
       <View style={styles.actionRow}>
         <Pressable
+          accessibilityLabel={labels.networkRefresh}
           accessibilityRole="button"
           onPress={() => void refresh(true)}
           style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.75 }]}
@@ -183,8 +191,9 @@ export function NetworkPanel({
           <Text style={styles.actionButtonText}>{labels.networkRefresh}</Text>
         </Pressable>
         <Pressable
+          accessibilityLabel={labels.networkClear}
           accessibilityRole="button"
-          onPress={clearRequests}
+          onPress={confirmClearRequests}
           style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.75 }]}
           testID={`${testIDPrefix}.network.clearButton`}
         >
