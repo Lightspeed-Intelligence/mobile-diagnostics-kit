@@ -1,9 +1,49 @@
 #import "MobileDiagnostics.h"
 
+#import <DoraemonKit/DoraemonBaseViewController.h>
 #import <DoraemonKit/DoraemonKit.h>
 #import <DoraemonKit/DoraemonCacheManager.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+
+typedef void (*MDKViewWillAppearImplementation)(id, SEL, BOOL);
+
+static MDKViewWillAppearImplementation MDKOriginalDoKitViewWillAppear = NULL;
+
+static void MDKDoKitViewWillAppear(DoraemonBaseViewController *controller,
+                                   SEL command, BOOL animated) {
+  if (MDKOriginalDoKitViewWillAppear != NULL) {
+    MDKOriginalDoKitViewWillAppear(controller, command, animated);
+  }
+
+  // The DoKit home intentionally has no back item. Child pages use a native
+  // bar item so UIKit owns the hit target instead of DoKit's 30pt custom view.
+  if ([controller isKindOfClass:NSClassFromString(@"DoraemonHomeViewController")]) {
+    return;
+  }
+
+  UIImage *backImage = [UIImage systemImageNamed:@"chevron.backward"];
+  UIBarButtonItem *backItem =
+      [[UIBarButtonItem alloc] initWithImage:backImage
+                                      style:UIBarButtonItemStylePlain
+                                     target:controller
+                                     action:@selector(leftNavBackClick:)];
+  backItem.accessibilityLabel = @"Back";
+  controller.navigationItem.leftBarButtonItem = backItem;
+}
+
+static void MDKInstallDoKitNavigationPatch(void) {
+  Class baseViewController = [DoraemonBaseViewController class];
+  Method viewWillAppear = class_getInstanceMethod(
+      baseViewController, @selector(viewWillAppear:));
+  if (viewWillAppear == NULL) {
+    return;
+  }
+
+  MDKOriginalDoKitViewWillAppear =
+      (MDKViewWillAppearImplementation)method_getImplementation(viewWillAppear);
+  method_setImplementation(viewWillAppear, (IMP)MDKDoKitViewWillAppear);
+}
 
 static void MDKIgnoreTelemetryPoint(id self, SEL command, NSString *name) {
   (void)self;
@@ -91,6 +131,7 @@ static void MDKReplaceLegacyNetworkPlugin(
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
     MDKDisableDoKitTelemetry();
+    MDKInstallDoKitNavigationPatch();
 
     DoraemonManager *manager = [DoraemonManager shareInstance];
     [manager addPluginWithTitle:@"Local State"

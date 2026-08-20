@@ -48,6 +48,23 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('icon:@"doraemon_file_sync"')
   })
 
+  it('uses a system-managed back item on DoKit child pages', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+    const installNavigationPatch = source.indexOf(
+      'MDKInstallDoKitNavigationPatch();'
+    )
+    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
+
+    expect(source).toContain('MDKDoKitViewWillAppear')
+    expect(source).toContain('DoraemonBaseViewController')
+    expect(source).toContain('DoraemonHomeViewController')
+    expect(source).toContain('initWithImage:backImage')
+    expect(source).toContain('action:@selector(leftNavBackClick:)')
+    expect(source).toContain('navigationItem.leftBarButtonItem = backItem')
+    expect(installNavigationPatch).toBeGreaterThan(-1)
+    expect(installDoKit).toBeGreaterThan(installNavigationPatch)
+  })
+
   it('replaces DoKit legacy Network with the React Native destination', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
     const removeLegacy = source.indexOf('removePluginWithPluginName')
