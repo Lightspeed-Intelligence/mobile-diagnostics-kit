@@ -23,6 +23,8 @@ const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
 const DOKIT_NORMAL_FLOAT_MODE = 'DoKitManager.IS_NORMAL_FLOAT_MODE = true'
 const LEGACY_DOKIT_SYSTEM_FLOAT_MODE =
   'DoKitManager.IS_NORMAL_FLOAT_MODE = false'
+const DOKIT_NORMAL_FLOAT_PREFERENCE =
+  '.putString("float_start_mode", "normal")'
 const LIFECYCLE_RESTORE_INSTALL =
   'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
@@ -162,6 +164,13 @@ function addMobileDiagnosticsNetworkPackage(contents, eol) {
 
 function renderDoKitInitialization(indent, eol) {
   return [
+    `${indent}getSharedPreferences(`,
+    `${indent}  "shared_prefs_doraemon",`,
+    `${indent}  android.content.Context.MODE_PRIVATE,`,
+    `${indent})`,
+    `${indent}  .edit()`,
+    `${indent}  ${DOKIT_NORMAL_FLOAT_PREFERENCE}`,
+    `${indent}  .commit()`,
     `${indent}${DOKIT_NORMAL_FLOAT_MODE}`,
     `${indent}DoKit.Builder(this)`,
     `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
@@ -184,7 +193,9 @@ function addNormalFloatMode(contents, eol) {
     'gm'
   )
   const next = contents.replace(legacyModeLine, '')
-  if (next.includes(DOKIT_NORMAL_FLOAT_MODE)) return next
+  const needsPreference = !next.includes(DOKIT_NORMAL_FLOAT_PREFERENCE)
+  const needsMode = !next.includes(DOKIT_NORMAL_FLOAT_MODE)
+  if (!needsPreference && !needsMode) return next
 
   const markerIndex = next.indexOf(DOKIT_INIT_MARKER)
   const builderIndex = next.lastIndexOf('DoKit.Builder(this)', markerIndex)
@@ -193,7 +204,20 @@ function addNormalFloatMode(contents, eol) {
   }
   const builderLineStart = next.lastIndexOf(eol, builderIndex) + eol.length
   const indent = next.slice(builderLineStart, builderIndex)
-  return `${next.slice(0, builderLineStart)}${indent}${DOKIT_NORMAL_FLOAT_MODE}${eol}${next.slice(builderLineStart)}`
+  const lines = []
+  if (needsPreference) {
+    lines.push(
+      `${indent}getSharedPreferences(`,
+      `${indent}  "shared_prefs_doraemon",`,
+      `${indent}  android.content.Context.MODE_PRIVATE,`,
+      `${indent})`,
+      `${indent}  .edit()`,
+      `${indent}  ${DOKIT_NORMAL_FLOAT_PREFERENCE}`,
+      `${indent}  .commit()`
+    )
+  }
+  if (needsMode) lines.push(`${indent}${DOKIT_NORMAL_FLOAT_MODE}`)
+  return `${next.slice(0, builderLineStart)}${lines.join(eol)}${eol}${next.slice(builderLineStart)}`
 }
 
 function addNetworkMonitorStart(contents, eol) {

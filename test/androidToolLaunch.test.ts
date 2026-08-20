@@ -82,6 +82,10 @@ class MainApplication : Application() {
 
     expect(application).toContain('DoKitManager.ALWAYS_SHOW_MAIN_ICON = false')
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
+    expect(application).toContain('.putString("float_start_mode", "normal")')
+    expect(
+      application.indexOf('.putString("float_start_mode", "normal")')
+    ).toBeLessThan(application.indexOf('DoKit.Builder(this)'))
     expect(source).toContain('class MobileDiagnosticsMainIconDoKitView')
     expect(source).toContain('params.width = launcherSize')
     expect(source).toContain('params.height = launcherSize')

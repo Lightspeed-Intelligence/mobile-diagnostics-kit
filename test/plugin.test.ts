@@ -104,7 +104,13 @@ describe('DoKit Expo config plugin', () => {
     ).toHaveLength(1)
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(
+      application.match(/\.putString\("float_start_mode", "normal"\)/g)
+    ).toHaveLength(1)
+    expect(
       application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
+    ).toBeLessThan(application.indexOf('DoKit.Builder(this)'))
+    expect(
+      application.indexOf('.putString("float_start_mode", "normal")')
     ).toBeLessThan(application.indexOf('DoKit.Builder(this)'))
     expect(
       application.indexOf('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
@@ -143,6 +149,7 @@ describe('DoKit Expo config plugin', () => {
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
+    expect(application).toContain('.putString("float_start_mode", "normal")')
     expect(application.match(/scheduleNetworkKitCleanup\(\)/g)).toHaveLength(1)
     expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
   })
