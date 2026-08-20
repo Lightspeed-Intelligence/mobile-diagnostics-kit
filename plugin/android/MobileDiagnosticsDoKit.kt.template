@@ -94,7 +94,7 @@ internal object MobileDiagnosticsDoKit {
       )
 
     override fun onViewCreated(view: FrameLayout) {
-      doKitView.setOnClickListener { DoKit.showToolPanel() }
+      view.setOnClickListener { DoKit.showToolPanel() }
     }
 
     override fun initDokitViewLayoutParams(params: DoKitViewLayoutParams) {
