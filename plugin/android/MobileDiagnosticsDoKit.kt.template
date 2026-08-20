@@ -47,6 +47,7 @@ internal object MobileDiagnosticsDoKit {
           currentActivity = activity
           if (!launcherInitialized) {
             launcherInitialized = true
+            DoKit.hide()
             DoKitManager.MAIN_ICON_HAS_SHOW = false
             DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
           }

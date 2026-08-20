@@ -91,6 +91,10 @@ class MainApplication : Application() {
     expect(source).toContain('params.height = launcherSize')
     expect(source).toContain('doKitView?.setOnClickListener')
     expect(source).toContain('DoKit.APPLICATION.resources.displayMetrics.density')
+    expect(source).toContain('DoKit.hide()')
+    expect(source.indexOf('DoKit.hide()')).toBeLessThan(
+      source.indexOf('showLauncherIfMissing(activity)')
+    )
     expect(source).not.toContain('view.setOnClickListener')
     expect(source).not.toContain('DoKitViewLayoutParams.MATCH_PARENT')
     expect(source).not.toContain('DoKit.show()')
