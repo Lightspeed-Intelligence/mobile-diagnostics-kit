@@ -94,11 +94,13 @@ internal object MobileDiagnosticsDoKit {
       )
 
     override fun onViewCreated(view: FrameLayout) {
-      getDoKitView().setOnClickListener { DoKit.showToolPanel() }
+      doKitView.setOnClickListener { DoKit.showToolPanel() }
     }
 
     override fun initDokitViewLayoutParams(params: DoKitViewLayoutParams) {
-      val launcherSize = (LAUNCHER_SIZE_DP * resources.displayMetrics.density).toInt()
+      val launcherSize = (
+        LAUNCHER_SIZE_DP * DoKit.APPLICATION.resources.displayMetrics.density
+      ).toInt()
       params.width = launcherSize
       params.height = launcherSize
       params.gravity = Gravity.TOP or Gravity.START
