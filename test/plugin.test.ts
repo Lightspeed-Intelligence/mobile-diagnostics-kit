@@ -118,11 +118,13 @@ describe('DoKit Expo config plugin', () => {
   })
 
   it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {
-    const { renderMobileDiagnosticsDoKitSource } = require(
-      '../plugin/withDoKit.js'
-    )
+    const {
+      renderMobileDiagnosticsDoKitSource,
+      renderMobileDiagnosticsLauncherSource,
+    } = require('../plugin/withDoKit.js')
 
     const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const launcherSource = renderMobileDiagnosticsLauncherSource('com.example.app')
 
     expect(source).toContain('class DestinationKit')
     expect(source).toContain('AbstractKit()')
@@ -131,14 +133,15 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('override fun onAppInit(context: Context?)')
     expect(source).not.toContain('override fun getName()')
     expect(source).not.toContain('override fun getIcon()')
-    expect(source).toContain('mobile-diagnostics-kit.open')
+    expect(launcherSource).toContain('mobile-diagnostics-kit.open')
     expect(source).toContain('"storage"')
     expect(source).toContain('"ota"')
     expect(source).toContain('"network"')
-    expect(source).toContain('RCTDeviceEventEmitter')
-    expect(source).toContain('reactApplication?.reactHost?.currentReactContext')
-    expect(source).toContain('reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext')
+    expect(launcherSource).toContain('RCTDeviceEventEmitter')
+    expect(launcherSource).toContain('reactApplication?.reactHost?.currentReactContext')
+    expect(launcherSource).toContain('reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext')
     expect(source).not.toContain('Tipsy')
+    expect(launcherSource).not.toContain('Tipsy')
   })
 
   it('generates an Android network kit with its own modern inspector', () => {

@@ -47,7 +47,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal object MobileDiagnosticsDoKit {
-  private const val OPEN_EVENT = "mobile-diagnostics-kit.open"
   private const val OFFICIAL_NETWORK_KIT = "dokit_sdk_performance_ck_network"
   private const val CLEANUP_ATTEMPTS = 20
   private var lifecycleRestoreInstalled = false
@@ -113,7 +112,7 @@ internal object MobileDiagnosticsDoKit {
     override val icon: Int
       get() = when (destination) {
         "network" -> android.R.drawable.ic_menu_search
-        "ota" -> android.R.drawable.ic_popup_sync
+        "ota" -> R.drawable.mobile_diagnostics_expo_update
         else -> android.R.drawable.ic_menu_edit
       }
 
@@ -128,7 +127,6 @@ internal object MobileDiagnosticsDoKit {
     override fun onClickWithReturn(activity: Activity): Boolean {
       if (destination == "network") {
         cleanupNetworkKit(0)
-        DoKit.hideToolPanel()
         startUniversalActivity(
           MobileDiagnosticsNetworkFragment::class.java,
           activity,
@@ -137,27 +135,7 @@ internal object MobileDiagnosticsDoKit {
         )
         return true
       }
-
-      val reactApplication = activity.application as? com.facebook.react.ReactApplication
-      val reactContext = reactApplication?.reactHost?.currentReactContext
-        ?: reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext
-      if (reactContext == null) {
-        Toast.makeText(
-          activity,
-          R.string.mobile_diagnostics_runtime_unavailable,
-          Toast.LENGTH_SHORT,
-        ).show()
-        return false
-      }
-
-      val payload = com.facebook.react.bridge.Arguments.createMap().apply {
-        putString("destination", destination)
-      }
-      reactContext
-        .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(OPEN_EVENT, payload)
-      DoKit.hideToolPanel()
-      return true
+      return MobileDiagnosticsLauncher.openAfterPanelDismiss(activity, destination)
     }
   }
 }

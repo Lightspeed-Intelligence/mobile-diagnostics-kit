@@ -22,11 +22,18 @@ const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
 const LIFECYCLE_RESTORE_INSTALL =
   'MobileDiagnosticsDoKit.installLifecycleRestore(this)'
 const GENERATED_SOURCE_NAME = 'MobileDiagnosticsDoKit.kt'
+const GENERATED_LAUNCHER_SOURCE_NAME = 'MobileDiagnosticsLauncher.kt'
 const GENERATED_RESOURCES_NAME = 'mobile_diagnostics_kit.xml'
+const GENERATED_EXPO_UPDATE_ICON_NAME = 'mobile_diagnostics_expo_update.xml'
 const GENERATED_ANDROID_TEMPLATE = path.join(
   __dirname,
   'android',
   'MobileDiagnosticsDoKit.kt.template'
+)
+const GENERATED_LAUNCHER_TEMPLATE = path.join(
+  __dirname,
+  'android',
+  'MobileDiagnosticsLauncher.kt.template'
 )
 const PROGUARD_MARKER = '# mobile-diagnostics-kit: DoKit runtime'
 const PROGUARD_RULES = [
@@ -166,6 +173,11 @@ function renderMobileDiagnosticsDoKitSource(packageName) {
   return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
 }
 
+function renderMobileDiagnosticsLauncherSource(packageName) {
+  const template = fs.readFileSync(GENERATED_LAUNCHER_TEMPLATE, 'utf8')
+  return template.replace(/^package __PACKAGE__$/m, `package ${packageName}`)
+}
+
 function renderMobileDiagnosticsResources() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -174,6 +186,20 @@ function renderMobileDiagnosticsResources() {
   <string name="mobile_diagnostics_expo_update">Expo Update</string>
   <string name="mobile_diagnostics_runtime_unavailable">Diagnostics runtime is not ready</string>
 </resources>
+`
+}
+
+function renderMobileDiagnosticsExpoUpdateIcon() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp"
+  android:height="24dp"
+  android:viewportWidth="24"
+  android:viewportHeight="24">
+  <path
+    android:fillColor="#168A5B"
+    android:pathData="M12,4V1L8,5l4,4V6c3.31,0 6,2.69 6,6 0,1.01 -0.25,1.97 -0.7,2.8l1.46,1.46A7.9,7.9 0,0 0,20 12c0,-4.42 -3.58,-8 -8,-8zM6,12c0,-1.01 0.25,-1.97 0.7,-2.8L5.24,7.74A7.9,7.9 0,0 0,4 12c0,4.42 3.58,8 8,8v3l4,-4 -4,-4v3c-3.31,0 -6,-2.69 -6,-6z" />
+</vector>
 `
 }
 
@@ -243,6 +269,10 @@ function withDoKit(config) {
         () => renderMobileDiagnosticsDoKitSource(packageName)
       )
       writeTransformedFile(
+        path.join(path.dirname(mainApplication), GENERATED_LAUNCHER_SOURCE_NAME),
+        () => renderMobileDiagnosticsLauncherSource(packageName)
+      )
+      writeTransformedFile(
         path.join(
           projectRoot,
           'app',
@@ -253,6 +283,18 @@ function withDoKit(config) {
           GENERATED_RESOURCES_NAME
         ),
         renderMobileDiagnosticsResources
+      )
+      writeTransformedFile(
+        path.join(
+          projectRoot,
+          'app',
+          'src',
+          'main',
+          'res',
+          'drawable',
+          GENERATED_EXPO_UPDATE_ICON_NAME
+        ),
+        renderMobileDiagnosticsExpoUpdateIcon
       )
       writeTransformedFile(
         path.join(projectRoot, 'app', 'proguard-rules.pro'),
@@ -269,4 +311,8 @@ module.exports.addDoKitProguardRules = addDoKitProguardRules
 module.exports.addDoKitToMainApplication = addDoKitToMainApplication
 module.exports.renderMobileDiagnosticsDoKitSource =
   renderMobileDiagnosticsDoKitSource
+module.exports.renderMobileDiagnosticsLauncherSource =
+  renderMobileDiagnosticsLauncherSource
 module.exports.renderMobileDiagnosticsResources = renderMobileDiagnosticsResources
+module.exports.renderMobileDiagnosticsExpoUpdateIcon =
+  renderMobileDiagnosticsExpoUpdateIcon

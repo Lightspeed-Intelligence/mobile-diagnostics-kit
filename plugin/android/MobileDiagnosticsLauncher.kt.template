@@ -1,0 +1,46 @@
+package __PACKAGE__
+
+import android.app.Activity
+import android.widget.Toast
+import com.facebook.react.ReactApplication
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.modules.core.DeviceEventManagerModule
+
+internal object MobileDiagnosticsLauncher {
+  private const val OPEN_EVENT = "mobile-diagnostics-kit.open"
+
+  fun openAfterPanelDismiss(activity: Activity, destination: String): Boolean {
+    val reactApplication = activity.application as? ReactApplication
+    val reactContext = reactApplication?.reactHost?.currentReactContext
+      ?: reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext
+    if (reactContext == null) {
+      showRuntimeUnavailable(activity)
+      return false
+    }
+
+    // DoKit dismisses the panel after onClickWithReturn returns true. Posting
+    // the event gives the underlying React activity focus before it opens a
+    // Modal, and avoids manually detaching DoKit's panel a second time.
+    activity.window.decorView.post {
+      runCatching {
+        val payload = Arguments.createMap().apply {
+          putString("destination", destination)
+        }
+        reactContext
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit(OPEN_EVENT, payload)
+      }.onFailure {
+        showRuntimeUnavailable(activity)
+      }
+    }
+    return true
+  }
+
+  private fun showRuntimeUnavailable(activity: Activity) {
+    Toast.makeText(
+      activity,
+      R.string.mobile_diagnostics_runtime_unavailable,
+      Toast.LENGTH_SHORT,
+    ).show()
+  }
+}
