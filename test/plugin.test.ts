@@ -268,6 +268,35 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('DestinationKit("network")')
   })
 
+  it('keeps DoKit tool activities inside Android 15 safe areas', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain(
+      '"com.didichuxing.doraemonkit.kit.core.UniversalActivity"'
+    )
+    expect(source).toContain('installDoKitSafeAreaInsets(activity)')
+    expect(source).toContain('Build.VERSION.SDK_INT < 35')
+    expect(source).toContain(
+      'activity.javaClass.name != DOKIT_UNIVERSAL_ACTIVITY'
+    )
+    expect(source).toContain(
+      'activity.findViewById<View>(android.R.id.content)'
+    )
+    expect(source).toContain('val initialPadding = ContentPadding(')
+    expect(source).toContain('content.setOnApplyWindowInsetsListener')
+    expect(source).toContain('WindowInsets.Type.systemBars()')
+    expect(source).toContain('WindowInsets.Type.displayCutout()')
+    expect(source).toContain('initialPadding.top + safeInsets.top')
+    expect(source).toContain('initialPadding.bottom + safeInsets.bottom')
+    expect(source).toContain('initialPadding.left + safeInsets.left')
+    expect(source).toContain('initialPadding.right + safeInsets.right')
+    expect(source).toContain('content.requestApplyInsets()')
+  })
+
   it('generates an opt-in Android bridge for exact DoKit captures', () => {
     const {
       renderMobileDiagnosticsNetworkModuleSource,
