@@ -20,7 +20,7 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(launcher).not.toContain('text = "D"')
   })
 
-  it('uses compact styled controls and previews large local values', () => {
+  it('matches the established diagnostics header and local-state workflow', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
     )
@@ -28,10 +28,42 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).toContain('RippleDrawable')
     expect(activity).toContain('roundedBackground(')
     expect(activity).toContain('Typeface.MONOSPACE')
+    expect(activity).toContain('mobile_diagnostics_eyebrow')
+    expect(activity).toContain('EditText')
+    expect(activity).toContain('filterStorageEntries(')
+    expect(activity).toContain('renderStorageDetail(')
     expect(activity).toContain('maxLines = 3')
-    expect(activity).toContain('showValueDialog(')
-    expect(activity).toContain('runtimeInfoRow(')
     expect(activity).not.toContain('android.widget.Button')
+  })
+
+  it('restores the established network toolbar, filters, and request detail', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+
+    expect(activity).toContain('NetworkManager.isActive()')
+    expect(activity).toContain('NetworkManager.get().startMonitor()')
+    expect(activity).toContain('NetworkManager.get().stopMonitor()')
+    expect(activity).toContain('mobile_diagnostics_network_requests')
+    expect(activity).toContain('mobile_diagnostics_network_errors')
+    expect(activity).toContain('mobile_diagnostics_network_received')
+    expect(activity).toContain('mobile_diagnostics_network_search')
+    expect(activity).toContain('filterNetworkRecords(')
+    expect(activity).toContain('renderNetworkDetail(')
+    expect(activity).toContain('createCurlCommand(')
+    expect(activity).toContain('copyToClipboard(')
+    expect(activity).toContain('collapsibleSection(')
+  })
+
+  it('keeps current-build information and the established OTA action card', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+
+    expect(activity).toContain('runtimeInfoRow(')
+    expect(activity).toContain('mobile_diagnostics_ota_title')
+    expect(activity).toContain('mobile_diagnostics_ota_description')
+    expect(activity).toContain('mobile_diagnostics_network_privacy_title')
   })
 
   it('localizes OTA and network detail labels on Android', () => {
@@ -46,6 +78,11 @@ describe('Android zero-host diagnostics UI contract', () => {
       'mobile_diagnostics_source',
       'mobile_diagnostics_request_headers',
       'mobile_diagnostics_response_body',
+      'mobile_diagnostics_network_search',
+      'mobile_diagnostics_filter_errors',
+      'mobile_diagnostics_copy_curl',
+      'mobile_diagnostics_storage_search',
+      'mobile_diagnostics_ota_description',
     ]
 
     for (const name of requiredNames) {
