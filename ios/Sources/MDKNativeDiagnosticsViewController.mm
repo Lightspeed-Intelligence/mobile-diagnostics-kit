@@ -141,7 +141,8 @@ static NSString *MDKDisplayString(NSString *key, NSString *rawValue) {
   }
   NSData *pretty = [NSJSONSerialization dataWithJSONObject:MDKSanitizeJSON(json)
                                                    options:NSJSONWritingPrettyPrinted |
-                                                           NSJSONWritingSortedKeys
+                                                           NSJSONWritingSortedKeys |
+                                                           NSJSONWritingFragmentsAllowed
                                                      error:nil];
   return pretty == nil
              ? rawValue
@@ -159,6 +160,38 @@ static NSString *MDKCompactPreview(NSString *value) {
   return preview.length > 180
              ? [[preview substringToIndex:180] stringByAppendingString:@"…"]
              : preview;
+}
+
+static id MDKParseJSONValue(NSString *value) {
+  NSData *data = [value dataUsingEncoding:NSUTF8StringEncoding];
+  if (data == nil) {
+    return nil;
+  }
+  return [NSJSONSerialization JSONObjectWithData:data
+                                         options:NSJSONReadingFragmentsAllowed
+                                           error:nil];
+}
+
+static NSString *MDKPrettyJSONValue(id value) {
+  if (value == nil || value == NSNull.null) {
+    return @"null";
+  }
+  if ([value isKindOfClass:NSDictionary.class] ||
+      [value isKindOfClass:NSArray.class]) {
+    NSData *data = [NSJSONSerialization dataWithJSONObject:value
+                                                   options:NSJSONWritingPrettyPrinted |
+                                                           NSJSONWritingSortedKeys
+                                                     error:nil];
+    if (data != nil) {
+      return [[NSString alloc] initWithData:data
+                                   encoding:NSUTF8StringEncoding];
+    }
+  }
+  if ([value isKindOfClass:NSNumber.class] &&
+      CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) {
+    return [value boolValue] ? @"true" : @"false";
+  }
+  return [value description] ?: @"";
 }
 
 static NSString *MDKMMKVRootPath(void) {
@@ -367,12 +400,15 @@ static UIViewController *MDKApplicationTopViewController(void) {
 
 @implementation MDKNativeDiagnosticsContentController {
   MDKDiagnosticsDestination _destination;
+  UIStackView *_bodyStack;
   UIScrollView *_scrollView;
   UIStackView *_content;
+  UIView *_networkDetailHeader;
 
   NSArray<NSDictionary<NSString *, NSString *> *> *_storageEntries;
   NSArray<NSDictionary<NSString *, NSString *> *> *_filteredStorageEntries;
   UIStackView *_storageResults;
+  UIView *_storageDetailView;
   UITextField *_storageSearchField;
   NSString *_selectedStorageKey;
 
@@ -471,18 +507,31 @@ static UIViewController *MDKApplicationTopViewController(void) {
 }
 
 - (void)configureScrollContent {
+  _bodyStack = [[UIStackView alloc] init];
+  _bodyStack.translatesAutoresizingMaskIntoConstraints = NO;
+  _bodyStack.axis = UILayoutConstraintAxisVertical;
+  _bodyStack.spacing = 0.0;
+  _bodyStack.backgroundColor = MDKSurfaceColor();
+  [self.view addSubview:_bodyStack];
+  [NSLayoutConstraint activateConstraints:@[
+    [_bodyStack.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+    [_bodyStack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [_bodyStack.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [_bodyStack.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
+  ]];
+
+  _networkDetailHeader = [self renderNetworkDetailHeader];
+  _networkDetailHeader.hidden = YES;
+  [_bodyStack addArrangedSubview:_networkDetailHeader];
+
   _scrollView = [[UIScrollView alloc] init];
   _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
   _scrollView.alwaysBounceVertical = YES;
   _scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
   _scrollView.backgroundColor = MDKSurfaceColor();
-  [self.view addSubview:_scrollView];
-  [NSLayoutConstraint activateConstraints:@[
-    [_scrollView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
-    [_scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-    [_scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-    [_scrollView.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
-  ]];
+  [_scrollView setContentHuggingPriority:UILayoutPriorityDefaultLow
+                                 forAxis:UILayoutConstraintAxisVertical];
+  [_bodyStack addArrangedSubview:_scrollView];
 
   _content = [[UIStackView alloc] init];
   _content.translatesAutoresizingMaskIntoConstraints = NO;
@@ -501,6 +550,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
 }
 
 - (void)renderDestination {
+  [self setNetworkDetailHeaderVisible:NO];
   [self clearStack:_content];
   switch (_destination) {
     case MDKDiagnosticsDestinationNetwork:
@@ -513,6 +563,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
       [self renderStorage];
       break;
   }
+  [_scrollView setContentOffset:CGPointZero animated:NO];
 }
 
 #pragma mark - Local state
@@ -560,12 +611,12 @@ static UIViewController *MDKApplicationTopViewController(void) {
 
 - (void)renderStorageResults {
   [self clearStack:_storageResults];
+  _storageDetailView = nil;
   if (_filteredStorageEntries.count == 0) {
     [_storageResults addArrangedSubview:[self
         emptyStateWithTitle:MDKText(@"No entries available", @"暂无可用条目")
                        body:MDKText(@"No keys match the current search.",
                                     @"没有符合当前搜索条件的 key。")]];
-    return;
   }
 
   [_filteredStorageEntries enumerateObjectsUsingBlock:^(
@@ -589,7 +640,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
     }
   }
   if (selected != nil) {
-    [_storageResults addArrangedSubview:[self storageDetailCard:selected]];
+    _storageDetailView = [self storageDetailCard:selected];
+    [_storageResults addArrangedSubview:_storageDetailView];
   }
 }
 
@@ -599,6 +651,15 @@ static UIViewController *MDKApplicationTopViewController(void) {
   }
   _selectedStorageKey = _filteredStorageEntries[sender.tag][@"key"];
   [self renderStorageResults];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self->_storageDetailView == nil) {
+      return;
+    }
+    CGRect detailRect = [self->_storageDetailView
+        convertRect:self->_storageDetailView.bounds
+             toView:self->_scrollView];
+    [self->_scrollView scrollRectToVisible:detailRect animated:YES];
+  });
 }
 
 - (UIButton *)storageEntryButton:(NSDictionary *)entry selected:(BOOL)selected {
@@ -613,19 +674,35 @@ static UIViewController *MDKApplicationTopViewController(void) {
   UIStackView *labels = [[UIStackView alloc] init];
   labels.translatesAutoresizingMaskIntoConstraints = NO;
   labels.axis = UILayoutConstraintAxisVertical;
-  labels.spacing = 5.0;
+  labels.spacing = 8.0;
   labels.userInteractionEnabled = NO;
+  UIStackView *storageTop = [[UIStackView alloc] init];
+  storageTop.axis = UILayoutConstraintAxisHorizontal;
+  storageTop.alignment = UIStackViewAlignmentCenter;
+  storageTop.spacing = 8.0;
   UILabel *key = [self labelWithText:entry[@"key"]];
   key.font = [UIFont boldSystemFontOfSize:15.0];
-  UILabel *kind = [self labelWithText:MDKText(@"MMKV ENTRY", @"MMKV 条目")];
+  key.numberOfLines = 2;
+  key.lineBreakMode = NSLineBreakByTruncatingTail;
+  [key setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
+                                        forAxis:UILayoutConstraintAxisHorizontal];
+  UILabel *kind = [self
+      labelWithText:[[self storageKindForValue:entry[@"value"]] uppercaseString]];
   kind.font = MDKMonoFont(10.0, UIFontWeightSemibold);
   kind.textColor = MDKAccentColor();
+  kind.numberOfLines = 1;
+  [kind setContentHuggingPriority:UILayoutPriorityRequired
+                          forAxis:UILayoutConstraintAxisHorizontal];
+  [kind setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                         forAxis:UILayoutConstraintAxisHorizontal];
   UILabel *preview = [self labelWithText:MDKCompactPreview(entry[@"value"])];
   preview.font = MDKMonoFont(11.0, UIFontWeightRegular);
   preview.textColor = MDKSecondaryTextColor();
   preview.numberOfLines = 2;
-  [labels addArrangedSubview:key];
-  [labels addArrangedSubview:kind];
+  preview.lineBreakMode = NSLineBreakByTruncatingTail;
+  [storageTop addArrangedSubview:key];
+  [storageTop addArrangedSubview:kind];
+  [labels addArrangedSubview:storageTop];
   [labels addArrangedSubview:preview];
   [button addSubview:labels];
   [NSLayoutConstraint activateConstraints:@[
@@ -640,23 +717,114 @@ static UIViewController *MDKApplicationTopViewController(void) {
 
 - (UIView *)storageDetailCard:(NSDictionary *)entry {
   UIStackView *card = [self cardWithColor:MDKBackgroundColor() radius:14.0];
+  UIStackView *header = [[UIStackView alloc] init];
+  header.axis = UILayoutConstraintAxisHorizontal;
+  header.alignment = UIStackViewAlignmentCenter;
+  header.spacing = 10.0;
+  UIStackView *headingBlock = [[UIStackView alloc] init];
+  headingBlock.axis = UILayoutConstraintAxisVertical;
+  headingBlock.spacing = 3.0;
   UILabel *heading = [self labelWithText:MDKText(@"Entry details", @"条目详情")];
   heading.font = [UIFont boldSystemFontOfSize:17.0];
-  [card addArrangedSubview:heading];
   UILabel *key = [self labelWithText:entry[@"key"]];
   key.font = MDKMonoFont(10.0, UIFontWeightRegular);
   key.textColor = MDKMutedTextColor();
-  [card addArrangedSubview:key];
+  [headingBlock addArrangedSubview:heading];
+  [headingBlock addArrangedSubview:key];
+  [headingBlock setContentHuggingPriority:UILayoutPriorityDefaultLow
+                                  forAxis:UILayoutConstraintAxisHorizontal];
+  [header addArrangedSubview:headingBlock];
+  UIButton *refresh = [self secondaryButtonWithTitle:MDKText(@"Refresh", @"刷新")];
+  refresh.accessibilityLabel = MDKText(@"Refresh local state", @"刷新本地状态");
+  [refresh addTarget:self
+              action:@selector(refreshStorage)
+    forControlEvents:UIControlEventTouchUpInside];
+  [refresh setContentHuggingPriority:UILayoutPriorityRequired
+                             forAxis:UILayoutConstraintAxisHorizontal];
+  [refresh setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                            forAxis:UILayoutConstraintAxisHorizontal];
+  [header addArrangedSubview:refresh];
+  [card addArrangedSubview:header];
   UILabel *description = [self labelWithText:MDKStorageReadOnlyText()];
   description.font = [UIFont systemFontOfSize:12.0];
   description.textColor = MDKSecondaryTextColor();
   [card addArrangedSubview:description];
-  UITextView *value = [self selectableTextWithText:entry[@"value"]];
-  value.font = MDKMonoFont(11.0, UIFontWeightRegular);
-  value.textColor = MDKSecondaryTextColor();
-  value.accessibilityLabel = MDKText(@"Entry value", @"条目值");
-  [card addArrangedSubview:value];
+  [self addStorageValueRowsForEntry:entry toStack:card];
   return card;
+}
+
+- (NSString *)storageKindForValue:(NSString *)rawValue {
+  id value = MDKParseJSONValue(rawValue);
+  if ([value isKindOfClass:NSDictionary.class]) return @"object";
+  if ([value isKindOfClass:NSArray.class]) return @"array";
+  if ([value isKindOfClass:NSNumber.class]) {
+    return CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()
+               ? @"boolean"
+               : @"number";
+  }
+  if (value == NSNull.null) return @"null";
+  return @"string";
+}
+
+- (void)addStorageValueRowsForEntry:(NSDictionary *)entry
+                            toStack:(UIStackView *)stack {
+  id value = MDKParseJSONValue(entry[@"value"]);
+  if ([value isKindOfClass:NSDictionary.class]) {
+    NSDictionary *dictionary = value;
+    NSArray *keys = [dictionary.allKeys
+        sortedArrayUsingComparator:^NSComparisonResult(id left, id right) {
+      return [[left description]
+          localizedCaseInsensitiveCompare:[right description]];
+    }];
+    if (keys.count == 0) {
+      [stack addArrangedSubview:[self
+          emptyStateWithTitle:MDKText(@"No fields", @"暂无字段")
+                         body:MDKText(@"This object is empty.", @"该对象为空。")]];
+      return;
+    }
+    for (id key in keys) {
+      [stack addArrangedSubview:[self storageValueRow:[key description]
+                                                value:MDKPrettyJSONValue(dictionary[key])]];
+    }
+    return;
+  }
+  [stack addArrangedSubview:[self
+      storageValueRow:MDKText(@"Value", @"值")
+                 value:value == nil ? entry[@"value"] : MDKPrettyJSONValue(value)]];
+}
+
+- (UIView *)storageValueRow:(NSString *)name value:(NSString *)value {
+  UIStackView *row = [[UIStackView alloc] init];
+  row.axis = UILayoutConstraintAxisVertical;
+  row.spacing = 4.0;
+  row.layoutMargins = UIEdgeInsetsMake(7.0, 0.0, 7.0, 0.0);
+  row.layoutMarginsRelativeArrangement = YES;
+  UILabel *nameLabel = [self labelWithText:name];
+  nameLabel.font = MDKMonoFont(12.0, UIFontWeightBold);
+  UITextView *valueView = [self selectableTextWithText:value];
+  valueView.font = MDKMonoFont(11.0, UIFontWeightRegular);
+  valueView.textColor = MDKSecondaryTextColor();
+  valueView.accessibilityLabel = [NSString stringWithFormat:@"%@: %@", name,
+                                                            value ?: @""];
+  [row addArrangedSubview:nameLabel];
+  [row addArrangedSubview:valueView];
+  [row addArrangedSubview:[self divider]];
+  return row;
+}
+
+- (void)refreshStorage {
+  _storageEntries = MDKStorageEntries();
+  BOOL selectionExists = NO;
+  for (NSDictionary *entry in _storageEntries) {
+    if ([entry[@"key"] isEqualToString:_selectedStorageKey]) {
+      selectionExists = YES;
+      break;
+    }
+  }
+  if (!selectionExists) {
+    _selectedStorageKey = nil;
+  }
+  [self filterStorageEntries];
 }
 
 #pragma mark - Network
@@ -977,6 +1145,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
   host.font = [UIFont systemFontOfSize:11.0];
   host.textColor = MDKMutedTextColor();
   host.textAlignment = NSTextAlignmentRight;
+  host.numberOfLines = 1;
+  host.lineBreakMode = NSLineBreakByTruncatingTail;
   [host setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
                                         forAxis:UILayoutConstraintAxisHorizontal];
   [top addArrangedSubview:method];
@@ -992,6 +1162,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
   }
   UILabel *pathLabel = [self labelWithText:path];
   pathLabel.font = MDKMonoFont(13.0, UIFontWeightSemibold);
+  pathLabel.numberOfLines = 2;
+  pathLabel.lineBreakMode = NSLineBreakByTruncatingTail;
   [content addArrangedSubview:pathLabel];
   UILabel *metadata = [self
       labelWithText:[NSString stringWithFormat:MDKText(@"%@ / %@ received",
@@ -1025,20 +1197,13 @@ static UIViewController *MDKApplicationTopViewController(void) {
 - (void)renderNetworkDetailForModel:(DoraemonNetFlowHttpModel *)model
                         responseTab:(BOOL)responseTab {
   _networkResponseTab = responseTab;
+  [self setNetworkDetailHeaderVisible:YES];
   [self clearStack:_content];
-
-  UIButton *back = [self secondaryButtonWithTitle:
-      MDKText(@"‹  Back to network requests", @"‹  返回请求列表")];
-  back.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-  back.accessibilityLabel = MDKText(@"Back to network requests", @"返回请求列表");
-  [back addTarget:self
-           action:@selector(backToNetworkList)
- forControlEvents:UIControlEventTouchUpInside];
-  [_content addArrangedSubview:back];
 
   UIStackView *summary = [self cardWithColor:MDKBackgroundColor() radius:8.0];
   UIStackView *top = [[UIStackView alloc] init];
   top.axis = UILayoutConstraintAxisHorizontal;
+  top.alignment = UIStackViewAlignmentCenter;
   top.spacing = 8.0;
   [top addArrangedSubview:[self badgeWithText:MDKNetworkMethod(model)
                                        color:[self methodColor:MDKNetworkMethod(model)]]];
@@ -1046,16 +1211,20 @@ static UIViewController *MDKApplicationTopViewController(void) {
   status.font = MDKMonoFont(12.0, UIFontWeightBold);
   status.textColor = [self statusColor:model.statusCode.integerValue];
   [top addArrangedSubview:status];
+  UIView *spacer = [[UIView alloc] init];
+  [spacer setContentHuggingPriority:UILayoutPriorityDefaultLow
+                            forAxis:UILayoutConstraintAxisHorizontal];
+  [top addArrangedSubview:spacer];
+  UIButton *curl = [self secondaryButtonWithTitle:MDKText(@"Copy cURL", @"复制 cURL")];
+  curl.accessibilityLabel = curl.currentTitle;
+  [curl addTarget:self action:@selector(copyCurl:)
+  forControlEvents:UIControlEventTouchUpInside];
+  [top addArrangedSubview:curl];
   [summary addArrangedSubview:top];
   UITextView *url = [self selectableTextWithText:MDKNetworkURL(model)];
   url.font = MDKMonoFont(11.0, UIFontWeightRegular);
   url.textColor = MDKSecondaryTextColor();
   [summary addArrangedSubview:url];
-  UIButton *curl = [self secondaryButtonWithTitle:MDKText(@"Copy cURL", @"复制 cURL")];
-  curl.accessibilityLabel = curl.currentTitle;
-  [curl addTarget:self action:@selector(copyCurl:)
-  forControlEvents:UIControlEventTouchUpInside];
-  [summary addArrangedSubview:curl];
   [_content addArrangedSubview:summary];
 
   UISegmentedControl *tabs = [[UISegmentedControl alloc]
@@ -1081,6 +1250,55 @@ static UIViewController *MDKApplicationTopViewController(void) {
   } else {
     [self addRequestSections:model];
   }
+  [_scrollView setContentOffset:CGPointZero animated:NO];
+}
+
+- (UIView *)renderNetworkDetailHeader {
+  UIStackView *container = [[UIStackView alloc] init];
+  container.axis = UILayoutConstraintAxisVertical;
+  container.spacing = 0.0;
+  container.backgroundColor = MDKSurfaceColor();
+
+  UIStackView *row = [[UIStackView alloc] init];
+  row.axis = UILayoutConstraintAxisHorizontal;
+  row.alignment = UIStackViewAlignmentCenter;
+  row.spacing = 8.0;
+  row.layoutMargins = UIEdgeInsetsMake(4.0, 16.0, 4.0, 16.0);
+  row.layoutMarginsRelativeArrangement = YES;
+  [row.heightAnchor constraintGreaterThanOrEqualToConstant:52.0].active = YES;
+
+  UIButton *back = [UIButton buttonWithType:UIButtonTypeSystem];
+  [back setTitle:@"‹" forState:UIControlStateNormal];
+  [back setTitleColor:MDKSecondaryTextColor() forState:UIControlStateNormal];
+  back.titleLabel.font = [UIFont systemFontOfSize:28.0 weight:UIFontWeightMedium];
+  back.backgroundColor = MDKCardColor();
+  back.layer.cornerRadius = 22.0;
+  back.accessibilityLabel = MDKText(@"Back to network requests", @"返回请求列表");
+  [back addTarget:self
+           action:@selector(backToNetworkList)
+ forControlEvents:UIControlEventTouchUpInside];
+  [back.widthAnchor constraintEqualToConstant:44.0].active = YES;
+  [back.heightAnchor constraintEqualToConstant:44.0].active = YES;
+  [back setContentHuggingPriority:UILayoutPriorityRequired
+                          forAxis:UILayoutConstraintAxisHorizontal];
+  [back setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                         forAxis:UILayoutConstraintAxisHorizontal];
+  [row addArrangedSubview:back];
+
+  UILabel *title = [self labelWithText:MDKText(@"Request details", @"请求详情")];
+  title.font = [UIFont boldSystemFontOfSize:16.0];
+  title.numberOfLines = 1;
+  title.lineBreakMode = NSLineBreakByTruncatingTail;
+  [title setContentHuggingPriority:UILayoutPriorityDefaultLow
+                           forAxis:UILayoutConstraintAxisHorizontal];
+  [row addArrangedSubview:title];
+  [container addArrangedSubview:row];
+  [container addArrangedSubview:[self divider]];
+  return container;
+}
+
+- (void)setNetworkDetailHeaderVisible:(BOOL)visible {
+  _networkDetailHeader.hidden = !visible;
 }
 
 - (void)backToNetworkList {
@@ -1106,7 +1324,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
                                                            @"上传 %@ / 下载 %@"),
                                                     MDKFormatBytes(model.uploadFlow.doubleValue),
                                                     MDKFormatBytes(model.downFlow.doubleValue)] ],
-                    ]];
+                    ]
+       initiallyExpanded:YES];
   [self addHeadersSection:MDKText(@"Request headers", @"请求头")
                   headers:model.request.allHTTPHeaderFields ?: @{}];
   [self addBodySection:MDKText(@"Payload", @"请求参数")
@@ -1123,7 +1342,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
                       @[ MDKText(@"Duration", @"耗时"), MDKFormatDuration(model) ],
                       @[ MDKText(@"Received", @"接收大小"),
                          MDKFormatBytes(model.downFlow.doubleValue) ],
-                    ]];
+                    ]
+       initiallyExpanded:YES];
   [self addHeadersSection:MDKText(@"Response headers", @"响应头")
                   headers:MDKNetworkResponseHeaders(model)];
   BOOL binary = model.responseBody.length == 0 && model.responseData.length > 0 &&
@@ -1134,11 +1354,14 @@ static UIViewController *MDKApplicationTopViewController(void) {
               byteCount:model.downFlow.doubleValue];
 }
 
-- (void)addDetailSection:(NSString *)title rows:(NSArray<NSArray<NSString *> *> *)rows {
-  UIStackView *section = [self cardWithColor:MDKBackgroundColor() radius:8.0];
-  UILabel *heading = [self labelWithText:title];
-  heading.font = [UIFont boldSystemFontOfSize:12.0];
-  [section addArrangedSubview:heading];
+- (void)addDetailSection:(NSString *)title
+                    rows:(NSArray<NSArray<NSString *> *> *)rows
+       initiallyExpanded:(BOOL)initiallyExpanded {
+  UIStackView *rowsStack = [[UIStackView alloc] init];
+  rowsStack.axis = UILayoutConstraintAxisVertical;
+  rowsStack.spacing = 0.0;
+  rowsStack.layoutMargins = UIEdgeInsetsMake(0.0, 12.0, 0.0, 12.0);
+  rowsStack.layoutMarginsRelativeArrangement = YES;
   for (NSArray<NSString *> *row in rows) {
     UIStackView *pair = [[UIStackView alloc] init];
     pair.axis = UILayoutConstraintAxisVertical;
@@ -1154,9 +1377,12 @@ static UIViewController *MDKApplicationTopViewController(void) {
     value.textColor = MDKSecondaryTextColor();
     [pair addArrangedSubview:key];
     [pair addArrangedSubview:value];
-    [section addArrangedSubview:pair];
+    [pair addArrangedSubview:[self divider]];
+    [rowsStack addArrangedSubview:pair];
   }
-  [_content addArrangedSubview:section];
+  [_content addArrangedSubview:[self collapsibleSectionWithTitle:title
+                                              initiallyExpanded:initiallyExpanded
+                                                         content:rowsStack]];
 }
 
 - (void)addHeadersSection:(NSString *)title headers:(NSDictionary *)headers {
@@ -1172,20 +1398,25 @@ static UIViewController *MDKApplicationTopViewController(void) {
     [rows addObject:@[ MDKText(@"Header", @"请求头"),
                        MDKText(@"No headers", @"暂无请求头") ]];
   }
-  [self addDetailSection:title rows:rows];
+  [self addDetailSection:title rows:rows initiallyExpanded:NO];
 }
 
 - (void)addBodySection:(NSString *)title
                    body:(NSString *)body
                  binary:(BOOL)binary
               byteCount:(double)byteCount {
-  UIStackView *section = [self cardWithColor:MDKBackgroundColor() radius:8.0];
+  UIStackView *bodyContent = [[UIStackView alloc] init];
+  bodyContent.axis = UILayoutConstraintAxisVertical;
+  bodyContent.spacing = 0.0;
   UIStackView *toolbar = [[UIStackView alloc] init];
   toolbar.axis = UILayoutConstraintAxisHorizontal;
   toolbar.alignment = UIStackViewAlignmentCenter;
-  UILabel *heading = [self labelWithText:title];
-  heading.font = [UIFont boldSystemFontOfSize:12.0];
-  [toolbar addArrangedSubview:heading];
+  toolbar.layoutMargins = UIEdgeInsetsMake(8.0, 8.0, 0.0, 8.0);
+  toolbar.layoutMarginsRelativeArrangement = YES;
+  UIView *spacer = [[UIView alloc] init];
+  [spacer setContentHuggingPriority:UILayoutPriorityDefaultLow
+                            forAxis:UILayoutConstraintAxisHorizontal];
+  [toolbar addArrangedSubview:spacer];
   UIButton *copy = [self secondaryButtonWithTitle:MDKText(@"Copy body", @"复制正文")];
   copy.enabled = body.length > 0 && !binary;
   copy.alpha = copy.enabled ? 1.0 : 0.5;
@@ -1194,7 +1425,9 @@ static UIViewController *MDKApplicationTopViewController(void) {
            action:@selector(copyNetworkBody:)
  forControlEvents:UIControlEventTouchUpInside];
   [toolbar addArrangedSubview:copy];
-  [section addArrangedSubview:toolbar];
+  if (body.length > 0 && !binary) {
+    [bodyContent addArrangedSubview:toolbar];
+  }
 
   NSString *display = @"";
   if (binary) {
@@ -1220,8 +1453,85 @@ static UIViewController *MDKApplicationTopViewController(void) {
   value.layer.cornerRadius = 6.0;
   value.layer.masksToBounds = YES;
   value.textContainerInset = UIEdgeInsetsMake(10.0, 10.0, 10.0, 10.0);
-  [section addArrangedSubview:value];
-  [_content addArrangedSubview:section];
+  UIStackView *valueWrapper = [[UIStackView alloc] init];
+  valueWrapper.axis = UILayoutConstraintAxisVertical;
+  valueWrapper.layoutMargins = UIEdgeInsetsMake(10.0, 10.0, 10.0, 10.0);
+  valueWrapper.layoutMarginsRelativeArrangement = YES;
+  [valueWrapper addArrangedSubview:value];
+  [bodyContent addArrangedSubview:valueWrapper];
+  [_content addArrangedSubview:[self collapsibleSectionWithTitle:title
+                                              initiallyExpanded:YES
+                                                         content:bodyContent]];
+}
+
+- (UIView *)collapsibleSectionWithTitle:(NSString *)title
+                      initiallyExpanded:(BOOL)initiallyExpanded
+                                 content:(UIView *)content {
+  UIStackView *section = [[UIStackView alloc] init];
+  section.axis = UILayoutConstraintAxisVertical;
+  section.spacing = 0.0;
+  section.backgroundColor = MDKBackgroundColor();
+  section.layer.cornerRadius = 8.0;
+  section.layer.borderWidth = 1.0;
+  section.layer.borderColor = MDKBorderColor().CGColor;
+  section.layer.masksToBounds = YES;
+
+  UIButton *header = [UIButton buttonWithType:UIButtonTypeCustom];
+  header.accessibilityLabel = title;
+  header.accessibilityValue = initiallyExpanded
+                                  ? MDKText(@"Expanded", @"已展开")
+                                  : MDKText(@"Collapsed", @"已收起");
+  [header addTarget:self
+             action:@selector(toggleCollapsibleSection:)
+   forControlEvents:UIControlEventTouchUpInside];
+  [header.heightAnchor constraintGreaterThanOrEqualToConstant:44.0].active = YES;
+
+  UIStackView *headerContent = [[UIStackView alloc] init];
+  headerContent.translatesAutoresizingMaskIntoConstraints = NO;
+  headerContent.axis = UILayoutConstraintAxisHorizontal;
+  headerContent.alignment = UIStackViewAlignmentCenter;
+  headerContent.userInteractionEnabled = NO;
+  UILabel *heading = [self labelWithText:title];
+  heading.font = [UIFont boldSystemFontOfSize:12.0];
+  [heading setContentHuggingPriority:UILayoutPriorityDefaultLow
+                            forAxis:UILayoutConstraintAxisHorizontal];
+  [headerContent addArrangedSubview:heading];
+  UILabel *indicator = [self labelWithText:initiallyExpanded ? @"−" : @"+"];
+  indicator.tag = 9102;
+  indicator.font = MDKMonoFont(16.0, UIFontWeightRegular);
+  indicator.textColor = MDKMutedTextColor();
+  indicator.textAlignment = NSTextAlignmentRight;
+  [indicator setContentHuggingPriority:UILayoutPriorityRequired
+                               forAxis:UILayoutConstraintAxisHorizontal];
+  [indicator setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                              forAxis:UILayoutConstraintAxisHorizontal];
+  [headerContent addArrangedSubview:indicator];
+  [header addSubview:headerContent];
+  [NSLayoutConstraint activateConstraints:@[
+    [headerContent.topAnchor constraintEqualToAnchor:header.topAnchor],
+    [headerContent.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:12.0],
+    [headerContent.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-12.0],
+    [headerContent.bottomAnchor constraintEqualToAnchor:header.bottomAnchor],
+  ]];
+  [section addArrangedSubview:header];
+  content.hidden = !initiallyExpanded;
+  [section addArrangedSubview:content];
+  return section;
+}
+
+- (void)toggleCollapsibleSection:(UIButton *)sender {
+  UIStackView *section = (UIStackView *)sender.superview;
+  if (![section isKindOfClass:UIStackView.class] ||
+      section.arrangedSubviews.count < 2) {
+    return;
+  }
+  UIView *content = section.arrangedSubviews[1];
+  BOOL expanded = content.hidden;
+  content.hidden = !expanded;
+  UILabel *indicator = [sender viewWithTag:9102];
+  indicator.text = expanded ? @"−" : @"+";
+  sender.accessibilityValue = expanded ? MDKText(@"Expanded", @"已展开")
+                                       : MDKText(@"Collapsed", @"已收起");
 }
 
 - (void)copyCurl:(__unused UIButton *)sender {
@@ -1393,6 +1703,10 @@ static UIViewController *MDKApplicationTopViewController(void) {
 }
 
 - (UIView *)runtimeRow:(NSString *)label value:(NSString *)value {
+  UIStackView *container = [[UIStackView alloc] init];
+  container.axis = UILayoutConstraintAxisVertical;
+  container.spacing = 0.0;
+  [container addArrangedSubview:[self divider]];
   UIStackView *row = [[UIStackView alloc] init];
   row.axis = UILayoutConstraintAxisHorizontal;
   row.alignment = UIStackViewAlignmentTop;
@@ -1410,7 +1724,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
   display.textAlignment = NSTextAlignmentRight;
   [row addArrangedSubview:name];
   [row addArrangedSubview:display];
-  return row;
+  [container addArrangedSubview:row];
+  return container;
 }
 
 - (void)checkAndApplyUpdate:(UIButton *)button {
@@ -1455,6 +1770,13 @@ static UIViewController *MDKApplicationTopViewController(void) {
   view.textContainer.lineFragmentPadding = 0.0;
   view.text = text ?: @"";
   return view;
+}
+
+- (UIView *)divider {
+  UIView *divider = [[UIView alloc] init];
+  divider.backgroundColor = MDKBorderColor();
+  [divider.heightAnchor constraintEqualToConstant:1.0].active = YES;
+  return divider;
 }
 
 - (UIStackView *)cardWithColor:(UIColor *)color radius:(CGFloat)radius {

@@ -185,6 +185,23 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('showStorageDetail:')
     expect(source).toContain('MDKStorageReadOnlyText')
     expect(source).toContain('selectable = YES')
+    expect(source).toContain('storageKindForValue:')
+    expect(source).toContain('addStorageValueRowsForEntry:')
+    expect(source).toContain('toStack:')
+    expect(source).toContain('refreshStorage')
+    expect(source).toContain('scrollRectToVisible:')
+    expect(source).toContain('NSJSONWritingFragmentsAllowed')
+    expect(source).toContain('storageTop.axis = UILayoutConstraintAxisHorizontal')
+    expect(source).toContain('key.numberOfLines = 2')
+
+    const emptyResult = source.indexOf('emptyStateWithTitle:MDKText(@"No entries available"')
+    const enumerateResults = source.indexOf(
+      '[_filteredStorageEntries enumerateObjectsUsingBlock:',
+      emptyResult
+    )
+    expect(emptyResult).toBeGreaterThan(-1)
+    expect(enumerateResults).toBeGreaterThan(emptyResult)
+    expect(source.slice(emptyResult, enumerateResults)).not.toContain('return;')
   })
 
   it('restores network metrics, capture controls, filters, and full request details', () => {
@@ -200,6 +217,28 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('copyCurl:')
     expect(source).toContain('copyNetworkBody:')
     expect(source).toContain('UIPasteboard.generalPasteboard.string')
+    expect(source).toContain('pathLabel.numberOfLines = 2')
+    expect(source).toContain('host.numberOfLines = 1')
+    expect(source).toContain('renderNetworkDetailHeader')
+    expect(source).toContain('collapsibleSectionWithTitle:')
+    expect(source).toContain('toggleCollapsibleSection:')
+    expect(source).toContain('initiallyExpanded:')
+    expect(
+      source.match(/top\.alignment = UIStackViewAlignmentCenter/g)?.length
+    ).toBeGreaterThanOrEqual(2)
+  })
+
+  it('keeps request-detail navigation fixed outside the scrolling content', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('UIStackView *_bodyStack')
+    expect(source).toContain('UIView *_networkDetailHeader')
+    expect(source).toContain('[_bodyStack addArrangedSubview:_networkDetailHeader]')
+    expect(source).toContain('[_bodyStack addArrangedSubview:_scrollView]')
+    expect(source).toContain('_networkDetailHeader.hidden = !visible')
+    expect(source).not.toContain(
+      '[_content addArrangedSubview:[self renderNetworkDetailHeader]]'
+    )
   })
 
   it('renders current-bundle and update-action cards with the established theme', () => {
