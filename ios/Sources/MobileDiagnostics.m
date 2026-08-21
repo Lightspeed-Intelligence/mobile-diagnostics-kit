@@ -18,13 +18,15 @@
 static __weak MDKDiagnosticsSurfaceViewController
     *MDKActiveDiagnosticsSurfaceController = nil;
 
-static BOOL MDKUsesChineseLanguage(void) {
+static BOOL MDKUsesEnglishLanguage(void) {
   NSString *language = NSLocale.preferredLanguages.firstObject;
-  return [language.lowercaseString hasPrefix:@"zh"];
+  return [language.lowercaseString hasPrefix:@"en"];
 }
 
 static NSString *MDKLocalizedString(NSString *english, NSString *chinese) {
-  return MDKUsesChineseLanguage() ? chinese : english;
+  // DoKit 3.1.7 only ships English and Simplified Chinese resources. Match
+  // its non-English fallback so built-in and custom tool names stay aligned.
+  return MDKUsesEnglishLanguage() ? english : chinese;
 }
 
 @implementation MDKDiagnosticsSurfaceViewController {

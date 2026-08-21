@@ -58,6 +58,17 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('MDKLocalizedString(@"Expo Update", @"Expo 热更新")')
   })
 
+  it('matches DoKit language fallback for non-English system languages', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+
+    expect(source).toContain('MDKUsesEnglishLanguage')
+    expect(source).toContain('hasPrefix:@"en"')
+    expect(source).toContain(
+      'MDKUsesEnglishLanguage() ? english : chinese'
+    )
+    expect(source).not.toContain('hasPrefix:@"zh"')
+  })
+
   it('owns generic navigation and RN surface presentation behind an additive API', () => {
     const header = read('ios/Sources/MobileDiagnostics.h')
     const source = read('ios/Sources/MobileDiagnostics.m')
