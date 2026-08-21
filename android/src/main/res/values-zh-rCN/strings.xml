@@ -1,5 +1,6 @@
 <resources>
   <string name="mobile_diagnostics_application_tools">应用工具</string>
+  <string name="mobile_diagnostics_launcher">打开 DoKit 工具</string>
   <string name="mobile_diagnostics_network">网络抓包</string>
   <string name="mobile_diagnostics_local_state">本地状态</string>
   <string name="mobile_diagnostics_expo_update">Expo 热更新</string>
@@ -9,4 +10,26 @@
   <string name="mobile_diagnostics_no_requests">暂无已捕获请求</string>
   <string name="mobile_diagnostics_no_state">暂无 MMKV 数据</string>
   <string name="mobile_diagnostics_unavailable">当前构建不可用</string>
+  <plurals name="mobile_diagnostics_request_count">
+    <item quantity="other">%1$d 条请求</item>
+  </plurals>
+  <string name="mobile_diagnostics_pending">等待中</string>
+  <string name="mobile_diagnostics_request_headers">请求头</string>
+  <string name="mobile_diagnostics_request_body">请求体</string>
+  <string name="mobile_diagnostics_response_headers">响应头</string>
+  <string name="mobile_diagnostics_response_body">响应体</string>
+  <string name="mobile_diagnostics_current_build">当前构建</string>
+  <string name="mobile_diagnostics_branch">分支</string>
+  <string name="mobile_diagnostics_update_id">更新 ID</string>
+  <string name="mobile_diagnostics_published">发布时间</string>
+  <string name="mobile_diagnostics_channel">频道</string>
+  <string name="mobile_diagnostics_runtime">运行时版本</string>
+  <string name="mobile_diagnostics_source">来源</string>
+  <string name="mobile_diagnostics_embedded">内置包</string>
+  <string name="mobile_diagnostics_ota">热更新</string>
+  <string name="mobile_diagnostics_checking">正在检查…</string>
+  <string name="mobile_diagnostics_downloading">正在下载…</string>
+  <string name="mobile_diagnostics_up_to_date">已是最新版本</string>
+  <string name="mobile_diagnostics_check_failed">更新检查失败</string>
+  <string name="mobile_diagnostics_download_failed">更新下载失败</string>
 </resources>

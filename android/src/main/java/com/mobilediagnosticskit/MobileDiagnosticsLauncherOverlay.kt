@@ -1,110 +1,188 @@
 package com.mobilediagnosticskit
 
 import android.app.Activity
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
+import android.app.Dialog
+import android.os.Build
 import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.view.WindowManager
-import android.widget.TextView
+import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.widget.FrameLayout
 import java.lang.ref.WeakReference
 import kotlin.math.abs
+import kotlin.math.max
 
 internal object MobileDiagnosticsLauncherOverlay {
+  private const val REACT_MODAL_HOST_VIEW =
+    "com.facebook.react.views.modal.ReactModalHostView"
   private var activityRef = WeakReference<Activity>(null)
+  private var observedRootRef = WeakReference<View>(null)
   private var launcher: View? = null
-  private var layoutParams: WindowManager.LayoutParams? = null
+  private var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+  private var lastX: Float? = null
+  private var lastY: Float? = null
 
   fun show(activity: Activity) {
-    if (activityRef.get() === activity && launcher?.isAttachedToWindow == true) return
-    hide()
-
-    val density = activity.resources.displayMetrics.density
-    val size = (48 * density).toInt()
-    val margin = (12 * density).toInt()
-    val button = TextView(activity).apply {
-      text = "D"
-      textSize = 20f
-      gravity = Gravity.CENTER
-      setTextColor(Color.WHITE)
-      contentDescription = "DoKit"
-      elevation = 12 * density
-      background = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(Color.rgb(22, 138, 91))
-        setStroke((2 * density).toInt(), Color.WHITE)
-      }
+    if (activityRef.get() !== activity) {
+      hide()
+      activityRef = WeakReference(activity)
+      observeModalChanges(activity)
     }
-    val params = WindowManager.LayoutParams(
-      size,
-      size,
-      WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
-      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-      PixelFormat.TRANSLUCENT,
-    ).apply {
-      token = activity.window.decorView.windowToken
-      gravity = Gravity.TOP or Gravity.START
-      x = activity.resources.displayMetrics.widthPixels - size - margin
-      y = margin * 5
-    }
-    installTouchHandling(button, activity.windowManager, params)
-
-    runCatching { activity.windowManager.addView(button, params) }
-      .onSuccess {
-        activityRef = WeakReference(activity)
-        launcher = button
-        layoutParams = params
-      }
+    scheduleRefresh(activity)
   }
 
   fun hide(activity: Activity? = null) {
     val owner = activityRef.get()
     if (activity != null && owner !== activity) return
-    val view = launcher
-    if (owner != null && view != null) {
-      runCatching { owner.windowManager.removeViewImmediate(view) }
+
+    layoutListener?.let { listener ->
+      observedRootRef.get()?.viewTreeObserver?.takeIf { it.isAlive }
+        ?.removeOnGlobalLayoutListener(listener)
     }
+    detachLauncher()
     activityRef = WeakReference(null)
-    launcher = null
-    layoutParams = null
+    observedRootRef = WeakReference(null)
+    layoutListener = null
   }
 
-  private fun installTouchHandling(
-    view: View,
-    windowManager: WindowManager,
-    params: WindowManager.LayoutParams,
-  ) {
+  private fun observeModalChanges(activity: Activity) {
+    val root = activity.window.decorView
+    val listener = ViewTreeObserver.OnGlobalLayoutListener {
+      root.post { refreshLauncher(activity) }
+    }
+    root.viewTreeObserver.addOnGlobalLayoutListener(listener)
+    observedRootRef = WeakReference(root)
+    layoutListener = listener
+  }
+
+  private fun scheduleRefresh(activity: Activity) {
+    val root = activity.window.decorView
+    root.post { refreshLauncher(activity) }
+    root.postDelayed({ refreshLauncher(activity) }, 120L)
+  }
+
+  private fun refreshLauncher(activity: Activity) {
+    if (activityRef.get() !== activity || activity.isFinishing ||
+      (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed)
+    ) return
+
+    val target = findTopmostReactModalDecor(activity.window.decorView)
+      ?: (activity.window.decorView as? ViewGroup)
+      ?: return
+    if (launcher?.parent === target && launcher?.isAttachedToWindow == true) return
+
+    detachLauncher()
+    val density = activity.resources.displayMetrics.density
+    val size = (48 * density).toInt()
+    val button = LayoutInflater.from(activity).inflate(
+      com.didichuxing.doraemonkit.R.layout.dk_main_launch_icon,
+      target,
+      false,
+    ).apply {
+      contentDescription = activity.getString(R.string.mobile_diagnostics_launcher)
+      elevation = 12 * density
+      isClickable = true
+      isFocusable = true
+      importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+      setOnClickListener { MobileDiagnosticsDoKit.showToolPanel() }
+    }
+    installTouchHandling(button, target)
+    target.addView(
+      button,
+      FrameLayout.LayoutParams(size, size, Gravity.TOP or Gravity.START),
+    )
+    launcher = button
+    positionLauncher(button, target, size)
+  }
+
+  private fun findTopmostReactModalDecor(root: View): ViewGroup? {
+    var topmost: ViewGroup? = null
+
+    fun visit(view: View) {
+      if (view.javaClass.name == REACT_MODAL_HOST_VIEW) {
+        val dialog = runCatching {
+          view.javaClass.methods
+            .firstOrNull { it.name == "getDialog" && it.parameterCount == 0 }
+            ?.invoke(view) as? Dialog
+        }.getOrNull()
+        if (dialog?.isShowing == true) {
+          (dialog.window?.decorView as? ViewGroup)?.let { topmost = it }
+        }
+      }
+      if (view is ViewGroup) {
+        for (index in 0 until view.childCount) visit(view.getChildAt(index))
+      }
+    }
+
+    visit(root)
+    return topmost
+  }
+
+  private fun positionLauncher(view: View, parent: ViewGroup, size: Int) {
+    parent.post {
+      if (view.parent !== parent) return@post
+      val margin = dp(view, 12)
+      val topInset = if (Build.VERSION.SDK_INT >= 23) {
+        @Suppress("DEPRECATION")
+        parent.rootWindowInsets?.systemWindowInsetTop ?: 0
+      } else 0
+      val maximumX = max(0, parent.width - size)
+      val maximumY = max(0, parent.height - size)
+      view.x = (lastX ?: (maximumX - margin).toFloat()).coerceIn(0f, maximumX.toFloat())
+      view.y = (lastY ?: (topInset + margin).toFloat()).coerceIn(0f, maximumY.toFloat())
+    }
+  }
+
+  private fun detachLauncher() {
+    launcher?.let { view ->
+      lastX = view.x
+      lastY = view.y
+      (view.parent as? ViewGroup)?.let { parent ->
+        runCatching { parent.removeView(view) }
+      }
+    }
+    launcher = null
+  }
+
+  private fun installTouchHandling(view: View, parent: ViewGroup) {
+    val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
     var downRawX = 0f
     var downRawY = 0f
-    var downX = 0
-    var downY = 0
+    var downX = 0f
+    var downY = 0f
     view.setOnTouchListener { _, event ->
       when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
           downRawX = event.rawX
           downRawY = event.rawY
-          downX = params.x
-          downY = params.y
+          downX = view.x
+          downY = view.y
           true
         }
         MotionEvent.ACTION_MOVE -> {
-          params.x = downX + (event.rawX - downRawX).toInt()
-          params.y = downY + (event.rawY - downRawY).toInt()
-          runCatching { windowManager.updateViewLayout(view, params) }
+          val maximumX = max(0, parent.width - view.width).toFloat()
+          val maximumY = max(0, parent.height - view.height).toFloat()
+          view.x = (downX + event.rawX - downRawX).coerceIn(0f, maximumX)
+          view.y = (downY + event.rawY - downRawY).coerceIn(0f, maximumY)
+          lastX = view.x
+          lastY = view.y
           true
         }
         MotionEvent.ACTION_UP -> {
-          if (abs(event.rawX - downRawX) < 8 && abs(event.rawY - downRawY) < 8) {
-            MobileDiagnosticsDoKit.showToolPanel()
-          }
+          if (abs(event.rawX - downRawX) < touchSlop &&
+            abs(event.rawY - downRawY) < touchSlop
+          ) view.performClick()
           true
         }
+        MotionEvent.ACTION_CANCEL -> true
         else -> false
       }
     }
   }
+
+  private fun dp(view: View, value: Int): Int =
+    (value * view.resources.displayMetrics.density).toInt()
 }

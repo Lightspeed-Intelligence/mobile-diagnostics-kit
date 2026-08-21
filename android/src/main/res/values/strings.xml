@@ -1,5 +1,6 @@
 <resources>
   <string name="mobile_diagnostics_application_tools">Application Tools</string>
+  <string name="mobile_diagnostics_launcher">Open DoKit tools</string>
   <string name="mobile_diagnostics_network">Network</string>
   <string name="mobile_diagnostics_local_state">Local State</string>
   <string name="mobile_diagnostics_expo_update">Expo Update</string>
@@ -9,4 +10,27 @@
   <string name="mobile_diagnostics_no_requests">No captured requests</string>
   <string name="mobile_diagnostics_no_state">No MMKV entries</string>
   <string name="mobile_diagnostics_unavailable">Unavailable in this build</string>
+  <plurals name="mobile_diagnostics_request_count">
+    <item quantity="one">%1$d request</item>
+    <item quantity="other">%1$d requests</item>
+  </plurals>
+  <string name="mobile_diagnostics_pending">Pending</string>
+  <string name="mobile_diagnostics_request_headers">Request headers</string>
+  <string name="mobile_diagnostics_request_body">Request body</string>
+  <string name="mobile_diagnostics_response_headers">Response headers</string>
+  <string name="mobile_diagnostics_response_body">Response body</string>
+  <string name="mobile_diagnostics_current_build">Current build</string>
+  <string name="mobile_diagnostics_branch">Branch</string>
+  <string name="mobile_diagnostics_update_id">Update ID</string>
+  <string name="mobile_diagnostics_published">Published</string>
+  <string name="mobile_diagnostics_channel">Channel</string>
+  <string name="mobile_diagnostics_runtime">Runtime</string>
+  <string name="mobile_diagnostics_source">Source</string>
+  <string name="mobile_diagnostics_embedded">Embedded</string>
+  <string name="mobile_diagnostics_ota">OTA</string>
+  <string name="mobile_diagnostics_checking">Checking…</string>
+  <string name="mobile_diagnostics_downloading">Downloading…</string>
+  <string name="mobile_diagnostics_up_to_date">Already up to date</string>
+  <string name="mobile_diagnostics_check_failed">Update check failed</string>
+  <string name="mobile_diagnostics_download_failed">Update download failed</string>
 </resources>
