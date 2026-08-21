@@ -175,4 +175,41 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('canInterceptNetFlow:enabled')
     expect(source).toContain('UIPasteboard.generalPasteboard.string')
   })
+
+  it('restores the zero-host local-state search and inline detail experience', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('MDKStorageSecurityTitle')
+    expect(source).toContain('MDKStorageSearchPlaceholder')
+    expect(source).toContain('filterStorageEntries')
+    expect(source).toContain('showStorageDetail:')
+    expect(source).toContain('MDKStorageReadOnlyText')
+    expect(source).toContain('selectable = YES')
+  })
+
+  it('restores network metrics, capture controls, filters, and full request details', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('scheduleNetworkRefresh')
+    expect(source).toContain('toggleNetworkCapture:')
+    expect(source).toContain('confirmClearNetwork')
+    expect(source).toContain('filterNetworkModels')
+    expect(source).toContain('showNetworkDetail:')
+    expect(source).toContain('renderNetworkDetailForModel:')
+    expect(source).toContain('responseTab:')
+    expect(source).toContain('copyCurl:')
+    expect(source).toContain('copyNetworkBody:')
+    expect(source).toContain('UIPasteboard.generalPasteboard.string')
+  })
+
+  it('renders current-bundle and update-action cards with the established theme', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('MDKCurrentBundleTitle')
+    expect(source).toContain('MDKOtaActionTitle')
+    expect(source).toContain('MDKAccentSurfaceColor')
+    expect(source).toContain('MDKBorderColor')
+    expect(source).toContain('safeAreaLayoutGuide')
+    expect(source).toContain('accessibilityLabel')
+  })
 })
