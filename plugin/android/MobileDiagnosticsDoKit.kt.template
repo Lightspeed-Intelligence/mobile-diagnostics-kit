@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import androidx.annotation.Keep
 import com.didichuxing.doraemonkit.DoKit
 import com.didichuxing.doraemonkit.kit.AbstractKit
 import com.didichuxing.doraemonkit.kit.core.AbsDoKitView
@@ -162,6 +163,7 @@ internal object MobileDiagnosticsDoKit {
    * Keep the launcher itself bounded even though DoKit's activity overlay
    * uses a full-screen container. Only the icon content handles clicks.
    */
+  @Keep
   internal class MobileDiagnosticsMainIconDoKitView : AbsDoKitView() {
     override fun onCreate(context: Context) = Unit
 

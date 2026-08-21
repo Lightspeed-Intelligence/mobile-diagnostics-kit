@@ -156,6 +156,19 @@ class MainApplication : Application() {
     expect(source).not.toContain('DoKit.isMainIconShow')
   })
 
+  it('keeps the reflectively-instantiated launcher in minified Android builds', () => {
+    const { renderMobileDiagnosticsDoKitSource } = require(
+      '../plugin/withDoKit.js'
+    )
+
+    const source = renderMobileDiagnosticsDoKitSource('com.example.app')
+
+    expect(source).toContain('import androidx.annotation.Keep')
+    expect(source).toContain(
+      '@Keep\n  internal class MobileDiagnosticsMainIconDoKitView : AbsDoKitView()'
+    )
+  })
+
   it('generates an app-owned vector icon for Expo Update', () => {
     const {
       renderMobileDiagnosticsDoKitSource,
