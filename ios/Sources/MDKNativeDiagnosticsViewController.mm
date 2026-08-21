@@ -115,9 +115,9 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) 
                                            attributes:nil
                                                 error:nil];
   std::string root = rootPath.UTF8String ?: "";
-  MMKV::initializeMMKV(root, MMKVLogWarning);
-  MMKV *storage = MMKV::mmkvWithID(DEFAULT_MMAP_ID, MMKV_SINGLE_PROCESS,
-                                   nullptr, &root);
+  mmkv::MMKV::initializeMMKV(root, mmkv::MMKVLogWarning);
+  mmkv::MMKV *storage = mmkv::MMKV::mmkvWithID(
+      DEFAULT_MMAP_ID, mmkv::MMKV_SINGLE_PROCESS, nullptr, &root);
   if (storage == nullptr) {
     return @[];
   }
