@@ -178,7 +178,7 @@ static void MDKDisableDoKitTelemetry(void) {
 }
 
 static NSString *MDKModuleContainingPlugin(DoraemonManager *manager,
-                                           NSString *pluginName) {
+                                            NSString *pluginName) {
   for (NSDictionary *module in manager.dataArray) {
     for (NSDictionary *plugin in module[@"pluginArray"]) {
       if ([plugin[@"pluginName"] isEqualToString:pluginName]) {
@@ -187,6 +187,21 @@ static NSString *MDKModuleContainingPlugin(DoraemonManager *manager,
     }
   }
   return nil;
+}
+
+static void MDKRemoveUnsupportedPlatformTools(DoraemonManager *manager) {
+  NSSet<NSString *> *platformModuleNames =
+      [NSSet setWithObjects:@"平台工具", @"Platform", nil];
+  NSIndexSet *platformModules =
+      [manager.dataArray indexesOfObjectsPassingTest:^BOOL(
+                             NSDictionary *module, __unused NSUInteger index,
+                             __unused BOOL *stop) {
+        NSString *moduleName = module[@"moduleName"];
+        return [platformModuleNames containsObject:moduleName];
+      }];
+  [manager.dataArray removeObjectsAtIndexes:platformModules];
+  [[DoraemonCacheManager sharedInstance]
+      saveKitManagerData:manager.dataArray];
 }
 
 static void MDKReplaceLegacyNetworkPlugin(
@@ -260,8 +275,14 @@ static void MDKReplaceLegacyNetworkPlugin(
       }
     }];
 
-    [[DoraemonManager shareInstance] install];
+    [manager install];
+    MDKRemoveUnsupportedPlatformTools(manager);
     MDKReplaceLegacyNetworkPlugin(manager, diagnosticsOpenHandler);
+    // Clean once more on the next main-queue turn so a platform entry added
+    // immediately after DoKit installation cannot recreate the group.
+    dispatch_async(dispatch_get_main_queue(), ^{
+      MDKRemoveUnsupportedPlatformTools(manager);
+    });
   });
 }
 

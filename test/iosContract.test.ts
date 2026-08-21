@@ -21,7 +21,7 @@ describe('iOS DoKit wrapper', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
     const disableUsageUpload = source.indexOf('DoraemonStatisticsUtil')
     const disableTelemetry = source.indexOf('method_setImplementation')
-    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
+    const installDoKit = source.indexOf('[manager install]')
 
     expect(disableUsageUpload).toBeGreaterThan(-1)
     expect(disableTelemetry).toBeGreaterThan(-1)
@@ -79,7 +79,7 @@ describe('iOS DoKit wrapper', () => {
     const installNavigationPatch = source.indexOf(
       'MDKInstallDoKitNavigationPatch();'
     )
-    const installDoKit = source.indexOf('DoraemonManager shareInstance] install')
+    const installDoKit = source.indexOf('[manager install]')
 
     expect(source).toContain('MDKDoKitViewWillAppear')
     expect(source).toContain('DoraemonBaseViewController')
@@ -93,9 +93,19 @@ describe('iOS DoKit wrapper', () => {
 
   it('replaces DoKit legacy Network with the React Native destination', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
-    const removeLegacy = source.indexOf('removePluginWithPluginName')
-    const refreshDoKitCache = source.indexOf('saveKitManagerData')
-    const registerReplacement = source.indexOf('pluginName:@"MDKNetworkPlugin"')
+    const replaceLegacy = source.indexOf('MDKReplaceLegacyNetworkPlugin(')
+    const removeLegacy = source.indexOf(
+      'removePluginWithPluginName',
+      replaceLegacy
+    )
+    const refreshDoKitCache = source.indexOf(
+      'saveKitManagerData',
+      removeLegacy
+    )
+    const registerReplacement = source.indexOf(
+      'pluginName:@"MDKNetworkPlugin"',
+      refreshDoKitCache
+    )
 
     expect(source).toContain('DoraemonNetFlowPlugin')
     expect(refreshDoKitCache).toBeGreaterThan(removeLegacy)
@@ -110,6 +120,24 @@ describe('iOS DoKit wrapper', () => {
         )
       )
     ).toBe(false)
+  })
+
+  it('removes the unsupported iOS platform-tools group, including late additions', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+    const installDoKit = source.indexOf('[manager install]')
+    const firstCleanup = source.indexOf(
+      'MDKRemoveUnsupportedPlatformTools(manager);',
+      installDoKit
+    )
+
+    expect(source).toContain('@"平台工具"')
+    expect(source).toContain('@"Platform"')
+    expect(source).toContain('[platformModuleNames containsObject:moduleName]')
+    expect(firstCleanup).toBeGreaterThan(installDoKit)
+    expect(source).toContain('dispatch_async(dispatch_get_main_queue(), ^{')
+    expect(source).toContain('MDKRemoveUnsupportedPlatformTools(manager);')
+    expect(source).toContain('removeObjectsAtIndexes:platformModules')
+    expect(source).toContain('saveKitManagerData:manager.dataArray')
   })
 
   it('exports complete native request snapshots without redaction', () => {
