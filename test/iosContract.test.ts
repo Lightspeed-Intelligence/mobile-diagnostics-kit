@@ -48,6 +48,16 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('icon:@"doraemon_file_sync"')
   })
 
+  it('localizes custom DoKit entries for Chinese system languages', () => {
+    const source = read('ios/Sources/MobileDiagnostics.m')
+
+    expect(source).toContain('NSLocale.preferredLanguages')
+    expect(source).toContain('MDKLocalizedString(@"Application Tools", @"应用工具")')
+    expect(source).toContain('MDKLocalizedString(@"Network", @"网络抓包")')
+    expect(source).toContain('MDKLocalizedString(@"Local State", @"本地状态")')
+    expect(source).toContain('MDKLocalizedString(@"Expo Update", @"Expo 热更新")')
+  })
+
   it('owns generic navigation and RN surface presentation behind an additive API', () => {
     const header = read('ios/Sources/MobileDiagnostics.h')
     const source = read('ios/Sources/MobileDiagnostics.m')

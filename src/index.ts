@@ -69,5 +69,6 @@ export {
 } from './storageInspector'
 export {
   DEFAULT_LABELS,
+  SIMPLIFIED_CHINESE_LABELS,
   type DiagnosticsLabels,
 } from './ui/model'

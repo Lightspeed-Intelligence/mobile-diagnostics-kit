@@ -17,7 +17,9 @@ const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
-const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits())'
+const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits(this))'
+const LEGACY_DOKIT_INIT_MARKER =
+  'customKits(MobileDiagnosticsDoKit.kits())'
 const LEGACY_DOKIT_INIT = 'DoKit.Builder(this).disableUpload().build()'
 const NETWORK_MONITOR_START = 'NetworkManager.get().startMonitor()'
 const BUILT_IN_KIT_CLEANUP =
@@ -106,10 +108,9 @@ function addImport(contents, importLine) {
 
 function addDoKitToMainApplication(contents) {
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
-  const next = DOKIT_IMPORTS.reduce(addImport, contents).replaceAll(
-    LEGACY_NETWORK_KIT_CLEANUP,
-    BUILT_IN_KIT_CLEANUP
-  )
+  const next = DOKIT_IMPORTS.reduce(addImport, contents)
+    .replaceAll(LEGACY_NETWORK_KIT_CLEANUP, BUILT_IN_KIT_CLEANUP)
+    .replaceAll(LEGACY_DOKIT_INIT_MARKER, DOKIT_INIT_MARKER)
   if (next.includes(DOKIT_INIT_MARKER)) {
     return addMobileDiagnosticsNetworkPackage(
       addNetworkMonitorStart(addNormalFloatMode(next, eol), eol),
@@ -180,7 +181,7 @@ function renderDoKitInitialization(indent, eol) {
     `${indent}  .commit()`,
     `${indent}${DOKIT_NORMAL_FLOAT_MODE}`,
     `${indent}DoKit.Builder(this)`,
-    `${indent}  .customKits(MobileDiagnosticsDoKit.kits())`,
+    `${indent}  .customKits(MobileDiagnosticsDoKit.kits(this))`,
     `${indent}  .disableUpload()`,
     `${indent}  .build()`,
     `${indent}DoKitManager.ALWAYS_SHOW_MAIN_ICON = false`,
@@ -289,10 +290,23 @@ function renderMobileDiagnosticsNetworkPackageSource(packageName) {
 function renderMobileDiagnosticsResources() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="mobile_diagnostics_application_tools">Application Tools</string>
   <string name="mobile_diagnostics_network">Network</string>
   <string name="mobile_diagnostics_local_state">Local State</string>
   <string name="mobile_diagnostics_expo_update">Expo Update</string>
   <string name="mobile_diagnostics_runtime_unavailable">Diagnostics runtime is not ready</string>
+</resources>
+`
+}
+
+function renderMobileDiagnosticsChineseResources() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mobile_diagnostics_application_tools">应用工具</string>
+  <string name="mobile_diagnostics_network">网络抓包</string>
+  <string name="mobile_diagnostics_local_state">本地状态</string>
+  <string name="mobile_diagnostics_expo_update">Expo 热更新</string>
+  <string name="mobile_diagnostics_runtime_unavailable">诊断运行时尚未就绪</string>
 </resources>
 `
 }
@@ -346,7 +360,10 @@ function findMainApplicationFile(javaRoot) {
 function writeTransformedFile(file, transform) {
   const contents = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : ''
   const next = transform(contents)
-  if (next !== contents) fs.writeFileSync(file, next)
+  if (next !== contents) {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, next)
+  }
 }
 
 function withDoKit(config) {
@@ -413,6 +430,18 @@ function withDoKit(config) {
           'src',
           'main',
           'res',
+          'values-zh-rCN',
+          GENERATED_RESOURCES_NAME
+        ),
+        renderMobileDiagnosticsChineseResources
+      )
+      writeTransformedFile(
+        path.join(
+          projectRoot,
+          'app',
+          'src',
+          'main',
+          'res',
           'drawable',
           GENERATED_EXPO_UPDATE_ICON_NAME
         ),
@@ -440,5 +469,7 @@ module.exports.renderMobileDiagnosticsNetworkModuleSource =
 module.exports.renderMobileDiagnosticsNetworkPackageSource =
   renderMobileDiagnosticsNetworkPackageSource
 module.exports.renderMobileDiagnosticsResources = renderMobileDiagnosticsResources
+module.exports.renderMobileDiagnosticsChineseResources =
+  renderMobileDiagnosticsChineseResources
 module.exports.renderMobileDiagnosticsExpoUpdateIcon =
   renderMobileDiagnosticsExpoUpdateIcon

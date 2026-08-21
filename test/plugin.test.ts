@@ -125,7 +125,7 @@ describe('DoKit Expo config plugin', () => {
     expect(
       application.match(/MobileDiagnosticsDoKit\.installLifecycleRestore\(this\)/g)
     ).toHaveLength(1)
-    expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(\)\)/g)).toHaveLength(1)
+    expect(application.match(/customKits\(MobileDiagnosticsDoKit\.kits\(this\)\)/g)).toHaveLength(1)
     expect(
       application.match(/add\(MobileDiagnosticsNetworkPackage\(\)\)/g)
     ).toHaveLength(1)
@@ -188,9 +188,11 @@ describe('DoKit Expo config plugin', () => {
   })
 
   it('routes the Android Network kit to the shared React Native inspector', () => {
-    const { renderMobileDiagnosticsDoKitSource, renderMobileDiagnosticsResources } = require(
-      '../plugin/withDoKit.js'
-    )
+    const {
+      renderMobileDiagnosticsChineseResources,
+      renderMobileDiagnosticsDoKitSource,
+      renderMobileDiagnosticsResources,
+    } = require('../plugin/withDoKit.js')
 
     const source = renderMobileDiagnosticsDoKitSource('com.example.app')
 
@@ -207,6 +209,19 @@ describe('DoKit Expo config plugin', () => {
     expect(source).not.toContain('Tipsy')
     expect(renderMobileDiagnosticsResources()).toContain(
       'name="mobile_diagnostics_network">Network'
+    )
+    expect(renderMobileDiagnosticsResources()).toContain(
+      'name="mobile_diagnostics_application_tools">Application Tools'
+    )
+    expect(renderMobileDiagnosticsChineseResources()).toContain(
+      'name="mobile_diagnostics_application_tools">应用工具'
+    )
+    expect(renderMobileDiagnosticsChineseResources()).toContain(
+      'name="mobile_diagnostics_network">网络抓包'
+    )
+    expect(source).toContain('fun kits(context: Context)')
+    expect(source).toContain(
+      'context.getString(R.string.mobile_diagnostics_application_tools)'
     )
   })
 
@@ -248,7 +263,7 @@ describe('DoKit Expo config plugin', () => {
     )
     expect(source).not.toContain('if (!removed &&')
     expect(source).toContain(
-      '"Application Tools" to listOf(\n      DestinationKit("network"),\n      DestinationKit("storage"),\n      DestinationKit("ota"),'
+      'context.getString(R.string.mobile_diagnostics_application_tools) to listOf(\n      DestinationKit("network"),\n      DestinationKit("storage"),\n      DestinationKit("ota"),'
     )
   })
 

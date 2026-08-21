@@ -35,8 +35,8 @@ internal object MobileDiagnosticsDoKit {
   private var panelRestorePending = false
   private var currentActivity: Activity? = null
 
-  fun kits(): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
-    "Application Tools" to listOf(
+  fun kits(context: Context): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
+    context.getString(R.string.mobile_diagnostics_application_tools) to listOf(
       DestinationKit("network"),
       DestinationKit("storage"),
       DestinationKit("ota"),

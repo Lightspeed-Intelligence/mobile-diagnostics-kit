@@ -18,6 +18,15 @@
 static __weak MDKDiagnosticsSurfaceViewController
     *MDKActiveDiagnosticsSurfaceController = nil;
 
+static BOOL MDKUsesChineseLanguage(void) {
+  NSString *language = NSLocale.preferredLanguages.firstObject;
+  return [language.lowercaseString hasPrefix:@"zh"];
+}
+
+static NSString *MDKLocalizedString(NSString *english, NSString *chinese) {
+  return MDKUsesChineseLanguage() ? chinese : english;
+}
+
 @implementation MDKDiagnosticsSurfaceViewController {
   NSString *_initialDestination;
   MDKDiagnosticsSurfaceProvider _surfaceProvider;
@@ -194,11 +203,12 @@ static void MDKReplaceLegacyNetworkPlugin(
   [[DoraemonCacheManager sharedInstance]
       saveKitManagerData:manager.dataArray];
 
-  [manager addPluginWithTitle:@"Network"
+  [manager addPluginWithTitle:MDKLocalizedString(@"Network", @"网络抓包")
                          icon:@"doraemon_net"
-                         desc:@"Inspect captured requests"
+                         desc:MDKLocalizedString(@"Inspect captured requests",
+                                                 @"查看已捕获的网络请求")
                    pluginName:@"MDKNetworkPlugin"
-                      atModule:@"Application Tools"
+                      atModule:MDKLocalizedString(@"Application Tools", @"应用工具")
                         handle:^(__unused NSDictionary *itemData) {
     [manager hiddenHomeWindow];
     if (openHandler != nil) {
@@ -223,22 +233,26 @@ static void MDKReplaceLegacyNetworkPlugin(
     MDKInstallDoKitNavigationPatch();
 
     DoraemonManager *manager = [DoraemonManager shareInstance];
-    [manager addPluginWithTitle:@"Local State"
+    [manager addPluginWithTitle:MDKLocalizedString(@"Local State", @"本地状态")
                            icon:@"doraemon_file"
-                           desc:@"Inspect allow-listed on-device state"
+                           desc:MDKLocalizedString(
+                                    @"Inspect allow-listed on-device state",
+                                    @"查看允许访问的本机状态")
                      pluginName:@"MDKLocalStatePlugin"
-                        atModule:@"Application Tools"
+                        atModule:MDKLocalizedString(@"Application Tools", @"应用工具")
                           handle:^(__unused NSDictionary *itemData) {
       [manager hiddenHomeWindow];
       if (diagnosticsOpenHandler != nil) {
         diagnosticsOpenHandler(MDKDiagnosticsDestinationLocalState);
       }
     }];
-    [manager addPluginWithTitle:@"Expo Update"
+    [manager addPluginWithTitle:MDKLocalizedString(@"Expo Update", @"Expo 热更新")
                            icon:@"doraemon_file_sync"
-                           desc:@"Check and apply a compatible update"
+                           desc:MDKLocalizedString(
+                                    @"Check and apply a compatible update",
+                                    @"检查并应用兼容的热更新")
                      pluginName:@"MDKExpoUpdatePlugin"
-                        atModule:@"Application Tools"
+                        atModule:MDKLocalizedString(@"Application Tools", @"应用工具")
                           handle:^(__unused NSDictionary *itemData) {
       [manager hiddenHomeWindow];
       if (diagnosticsOpenHandler != nil) {
