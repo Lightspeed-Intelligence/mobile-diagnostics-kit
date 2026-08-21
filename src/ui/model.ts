@@ -93,11 +93,10 @@ export const DEFAULT_LABELS: DiagnosticsLabels = {
   otaTab: 'Expo update',
   securityTitle: 'Private by default',
   securityBody:
-    'Only host allow-listed MMKV entries are shown. Credential-like fields are always redacted, and this panel never uploads local content.',
-  searchPlaceholder: 'Search configured entries',
+    'All MMKV entries are shown read-only. Host-configured entries may be edited; credential-like keys and fields are always redacted.',
+  searchPlaceholder: 'Search MMKV entries',
   emptyTitle: 'No entries available',
-  emptyBody:
-    'Add explicit MMKV keys in the host configuration. The default allow-list is empty.',
+  emptyBody: 'No keys are stored in this MMKV instance yet.',
   missingValue: 'Missing',
   refresh: 'Refresh',
   refreshStorage: 'Refresh local state',
@@ -182,10 +181,10 @@ export const SIMPLIFIED_CHINESE_LABELS: DiagnosticsLabels = {
   otaTab: 'Expo 热更新',
   securityTitle: '数据仅保留在本机',
   securityBody:
-    '仅显示宿主明确允许的 MMKV 条目。凭据类字段始终隐藏，本面板不会上传任何本地内容。',
-  searchPlaceholder: '搜索已配置的条目',
+    '展示全部 MMKV 条目；自动发现的条目只读，宿主配置的条目可编辑，凭据类 key 和字段始终隐藏。',
+  searchPlaceholder: '搜索 MMKV 条目',
   emptyTitle: '暂无可用条目',
-  emptyBody: '请在宿主配置中显式添加 MMKV key；默认允许列表为空。',
+  emptyBody: '当前 MMKV 实例中还没有已存储的 key。',
   missingValue: '未设置',
   refresh: '刷新',
   refreshStorage: '刷新本地状态',

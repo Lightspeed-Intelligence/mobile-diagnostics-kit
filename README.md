@@ -13,10 +13,11 @@ network list with an on-device inspector.
 - DoKit 3.1.7 ownership for iOS, including two custom plugins and a modern
   Network inspector registered in DoKit's own home panel;
 - a compact React Native diagnostics panel with accessible touch targets;
-- MMKV field add, update, delete, and explicitly permitted entry reset;
+- read-only discovery of every MMKV key, plus field editing for explicitly
+  configured entries and explicitly permitted entry reset;
 - support for nested Zustand persist envelopes through `valuePath`;
 - Expo update check, download, and optional reload through a host adapter;
-- deny-by-default build and storage access controls.
+- deny-by-default build and storage mutation controls.
 
 The library does not run a server, accept arbitrary OTA URLs, or upload local
 state. DoKit analytics are disabled on both native platforms.
@@ -45,7 +46,7 @@ intentionally absent from `package.json.dependencies`:
 Mount the companion once near the application root. It renders no button or
 floating entry; it only listens for selections made from DoKit's native custom
 kits. The build owns whether the package is present; the host owns its MMKV
-instance, allowed keys, copy, and Expo adapter.
+instance, editable keys, copy, and Expo adapter.
 
 ```tsx
 import * as Updates from 'expo-updates'
@@ -115,11 +116,14 @@ an explicit `onClose` callback.
 
 ### Storage policy
 
-Each entry must use an exact key. Wildcards and automatic MMKV enumeration are
-not supported. Prefer `allowedFields` even for an allowed key. Field names that
-look like credentials, cookies, passwords, private keys, API keys, or crash
-reporting credentials are recursively redacted and cannot be changed through
-the inspector. Whole-entry deletion requires `allowReset: true`.
+Every key returned by the supplied MMKV instance is listed automatically.
+Automatically discovered entries are read-only. An `entries` item uses an
+exact key to opt that entry into field editing and to provide labels, field
+filters, or a nested `valuePath`; prefer `allowedFields` for those entries.
+Key or field names that look like credentials, cookies, passwords, private
+keys, API keys, or crash reporting credentials are redacted and cannot be
+changed through the inspector. Whole-entry deletion still requires
+`allowReset: true`.
 
 The host can replace any user-facing string through the `labels` prop without
 forking the UI.
