@@ -73,6 +73,7 @@ export function AppDiagnostics() {
         process.env.EXPO_PUBLIC_MOBILE_DIAGNOSTICS
       )}
       entries={entries}
+      sourceBranch={process.env.EXPO_PUBLIC_SOURCE_BRANCH}
       storage={storage}
       updates={Updates}
     />
@@ -86,8 +87,10 @@ can still be embedded in a release configuration. It does not create a second
 launcher: DoKit is the only entry point.
 
 `storage` is structural and works with an MMKV instance that implements the
-small `MMKVStorageLike` interface. A non-Expo React Native app may omit
-`updates`; the Expo Update page will report that updates are unsupported.
+small `MMKVStorageLike` interface. `sourceBranch` is optional host-owned build
+metadata; pass the exact source branch instead of reconstructing it from a
+normalized update channel. A non-Expo React Native app may omit `updates`; the
+Expo Update page will report that updates are unsupported.
 
 For a native shell that mounts named React Native surfaces, use
 `createMobileDiagnosticsSurface(options)`. The returned component is always
@@ -168,6 +171,12 @@ and does not modify files inside `Pods`.
 update, and reload if requested. It deliberately cannot switch channels,
 bypass `runtimeVersion`, or use a caller-provided URL. If `expo-updates` is
 disabled in the binary, the result is `unsupported`.
+
+The page also shows the currently running RN bundle's source branch, update ID,
+publish time, channel, runtime version, and whether it came from the embedded
+binary or an OTA download. The values are read from the host-provided branch
+and the public `expo-updates` constants; raw manifests and update URLs remain
+hidden.
 
 ## Public API stability
 

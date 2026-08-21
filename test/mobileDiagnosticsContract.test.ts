@@ -22,6 +22,10 @@ const networkPanelPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../src/ui/NetworkPanel.tsx'
 )
+const otaPanelPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../src/ui/OtaPanel.tsx'
+)
 const modelPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../src/ui/model.ts'
@@ -119,5 +123,20 @@ describe('React Native diagnostics presentation contract', () => {
     )
     expect(panel).toContain('await client.clearRequests()')
     expect(labels).toContain("networkClear: 'Clear requests'")
+  })
+
+  it('shows the current RN update identity and exact source branch', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+    const content = readFileSync(contentPath, 'utf8')
+    const panel = readFileSync(otaPanelPath, 'utf8')
+
+    expect(source).toContain('sourceBranch?: string')
+    expect(content).toContain('getOtaRuntimeInfo(updates, sourceBranch)')
+    expect(panel).toContain('runtimeInfo.sourceBranch')
+    expect(panel).toContain('runtimeInfo.updateId')
+    expect(panel).toContain('runtimeInfo.createdAt')
+    expect(panel).toContain('runtimeInfo.channel')
+    expect(panel).toContain('runtimeInfo.runtimeVersion')
+    expect(panel).toContain('runtimeInfo.launchSource')
   })
 })

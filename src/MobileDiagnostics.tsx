@@ -31,6 +31,8 @@ interface DiagnosticsBaseProps {
   storage?: MMKVStorageLike
   entries?: readonly StorageEntryConfig[]
   updates?: UpdatesLike
+  /** Exact source branch embedded by the host build or update pipeline. */
+  sourceBranch?: string
   reloadAfterFetch?: boolean
   title?: string
   labels?: Partial<DiagnosticsLabels>
@@ -173,6 +175,7 @@ export function MobileDiagnosticsScreen({
           labels={contentProps.labels}
           onClose={onClose}
           reloadAfterFetch={contentProps.reloadAfterFetch ?? true}
+          sourceBranch={contentProps.sourceBranch}
           storage={contentProps.storage}
           testIDPrefix={testIDPrefix}
           title={contentProps.title}

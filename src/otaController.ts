@@ -1,8 +1,22 @@
 export interface UpdatesLike {
   readonly isEnabled?: boolean
+  readonly updateId?: string | null
+  readonly channel?: string | null
+  readonly runtimeVersion?: string | null
+  readonly createdAt?: Date | null
+  readonly isEmbeddedLaunch?: boolean
   checkForUpdateAsync(): Promise<{ isAvailable: boolean }>
   fetchUpdateAsync(): Promise<{ isNew?: boolean }>
   reloadAsync(): Promise<void>
+}
+
+export interface OtaRuntimeInfo {
+  readonly sourceBranch: string | null
+  readonly updateId: string | null
+  readonly createdAt: string | null
+  readonly channel: string | null
+  readonly runtimeVersion: string | null
+  readonly launchSource: 'embedded' | 'ota' | 'unknown'
 }
 
 export type OtaApplyResult =
@@ -27,6 +41,40 @@ export interface OtaControllerOptions {
   enabled: boolean
   /** Set false to download now and reload on the next app launch. */
   reloadAfterFetch?: boolean
+}
+
+function optionalText(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized || null
+}
+
+export function getOtaRuntimeInfo(
+  updates?: UpdatesLike,
+  sourceBranch?: string
+): OtaRuntimeInfo {
+  const updateId = optionalText(updates?.updateId)
+  const createdAt = updates?.createdAt
+  const createdAtTimestamp = createdAt?.getTime()
+  const launchSource =
+    updates?.isEmbeddedLaunch === true
+      ? 'embedded'
+      : updates?.isEmbeddedLaunch === false && updateId
+        ? 'ota'
+        : 'unknown'
+
+  return {
+    channel: optionalText(updates?.channel),
+    createdAt:
+      typeof createdAtTimestamp === 'number' &&
+      Number.isFinite(createdAtTimestamp)
+        ? createdAt!.toISOString()
+        : null,
+    launchSource,
+    runtimeVersion: optionalText(updates?.runtimeVersion),
+    sourceBranch: optionalText(sourceBranch),
+    updateId,
+  }
 }
 
 export function createOtaController({

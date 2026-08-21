@@ -1,17 +1,52 @@
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
-import type { OtaController } from '../otaController'
+import type { OtaController, OtaRuntimeInfo } from '../otaController'
 import { type ApplyState, type DiagnosticsLabels, statusLabel } from './model'
 import { colors, styles } from './theme'
 
 interface OtaPanelProps {
   controller: OtaController
   labels: DiagnosticsLabels
+  runtimeInfo: OtaRuntimeInfo
   testIDPrefix: string
 }
 
-export function OtaPanel({ controller, labels, testIDPrefix }: OtaPanelProps) {
+interface RuntimeInfoRowProps {
+  label: string
+  testID: string
+  value: string | null
+}
+
+function RuntimeInfoRow({ label, testID, value }: RuntimeInfoRowProps) {
+  return (
+    <View style={styles.runtimeInfoRow}>
+      <Text style={styles.runtimeInfoLabel}>{label}</Text>
+      <Text
+        selectable
+        style={styles.runtimeInfoValue}
+        testID={testID}
+      >
+        {value ?? '—'}
+      </Text>
+    </View>
+  )
+}
+
+export function OtaPanel({
+  controller,
+  labels,
+  runtimeInfo,
+  testIDPrefix,
+}: OtaPanelProps) {
   const [state, setState] = useState<ApplyState>('idle')
+  const launchSource = {
+    embedded: labels.otaEmbeddedSource,
+    ota: labels.otaDownloadedSource,
+    unknown: labels.otaUnknownSource,
+  }[runtimeInfo.launchSource]
+  const createdAt = runtimeInfo.createdAt
+    ? new Date(runtimeInfo.createdAt).toLocaleString()
+    : null
 
   const applyUpdate = async () => {
     if (state === 'working') return
@@ -26,6 +61,40 @@ export function OtaPanel({ controller, labels, testIDPrefix }: OtaPanelProps) {
       showsVerticalScrollIndicator={false}
       testID={`${testIDPrefix}.ota.list`}
     >
+      <View style={styles.runtimeInfoCard}>
+        <Text style={styles.runtimeInfoTitle}>{labels.otaCurrentTitle}</Text>
+        <RuntimeInfoRow
+          label={labels.otaBranch}
+          testID={`${testIDPrefix}.ota.sourceBranch`}
+          value={runtimeInfo.sourceBranch}
+        />
+        <RuntimeInfoRow
+          label={labels.otaLaunchSource}
+          testID={`${testIDPrefix}.ota.launchSource`}
+          value={launchSource}
+        />
+        <RuntimeInfoRow
+          label={labels.otaUpdateId}
+          testID={`${testIDPrefix}.ota.updateId`}
+          value={runtimeInfo.updateId}
+        />
+        <RuntimeInfoRow
+          label={labels.otaCreatedAt}
+          testID={`${testIDPrefix}.ota.createdAt`}
+          value={createdAt}
+        />
+        <RuntimeInfoRow
+          label={labels.otaChannel}
+          testID={`${testIDPrefix}.ota.channel`}
+          value={runtimeInfo.channel}
+        />
+        <RuntimeInfoRow
+          label={labels.otaRuntimeVersion}
+          testID={`${testIDPrefix}.ota.runtimeVersion`}
+          value={runtimeInfo.runtimeVersion}
+        />
+      </View>
+
       <View style={styles.otaCard}>
         <View style={styles.otaIcon}>
           <Text accessible={false} style={styles.otaIconText}>

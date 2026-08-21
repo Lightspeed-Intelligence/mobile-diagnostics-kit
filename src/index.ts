@@ -45,9 +45,11 @@ export {
 } from './nativeNetworkDiagnostics'
 export {
   createOtaController,
+  getOtaRuntimeInfo,
   type OtaApplyResult,
   type OtaController,
   type OtaControllerOptions,
+  type OtaRuntimeInfo,
   type UpdatesLike,
 } from './otaController'
 export {

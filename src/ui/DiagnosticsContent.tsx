@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { createOtaController, type UpdatesLike } from '../otaController'
+import {
+  createOtaController,
+  getOtaRuntimeInfo,
+  type UpdatesLike,
+} from '../otaController'
 import type { DiagnosticsDestination } from '../presentation'
 import {
   createStorageInspector,
@@ -23,6 +27,7 @@ export interface DiagnosticsContentProps {
   labels?: Partial<DiagnosticsLabels>
   onClose?: () => void
   reloadAfterFetch: boolean
+  sourceBranch?: string
   storage?: MMKVStorageLike
   testIDPrefix: string
   title?: string
@@ -37,6 +42,7 @@ export function DiagnosticsContent({
   labels: labelOverrides,
   onClose,
   reloadAfterFetch,
+  sourceBranch,
   storage,
   testIDPrefix,
   title,
@@ -60,6 +66,10 @@ export function DiagnosticsContent({
     () =>
       createOtaController({ enabled, reloadAfterFetch, updates }),
     [enabled, reloadAfterFetch, updates]
+  )
+  const otaRuntimeInfo = useMemo(
+    () => getOtaRuntimeInfo(updates, sourceBranch),
+    [sourceBranch, updates]
   )
 
   const refresh = useCallback(() => {
@@ -122,6 +132,7 @@ export function DiagnosticsContent({
         <OtaPanel
           controller={otaController}
           labels={labels}
+          runtimeInfo={otaRuntimeInfo}
           testIDPrefix={testIDPrefix}
         />
       )}

@@ -48,6 +48,16 @@ export interface DiagnosticsLabels {
   otaUnsupported: string
   otaDisabled: string
   otaFailed: string
+  otaCurrentTitle: string
+  otaBranch: string
+  otaUpdateId: string
+  otaCreatedAt: string
+  otaChannel: string
+  otaRuntimeVersion: string
+  otaLaunchSource: string
+  otaEmbeddedSource: string
+  otaDownloadedSource: string
+  otaUnknownSource: string
   networkTitle: string
   networkBody: string
   networkSearchPlaceholder: string
@@ -126,6 +136,16 @@ export const DEFAULT_LABELS: DiagnosticsLabels = {
   otaUnsupported: 'Expo updates are unavailable in this build',
   otaDisabled: 'Update actions are disabled in this build',
   otaFailed: 'Update failed; provider details remain hidden',
+  otaCurrentTitle: 'Current RN bundle',
+  otaBranch: 'Branch',
+  otaUpdateId: 'Update ID',
+  otaCreatedAt: 'Published',
+  otaChannel: 'Channel',
+  otaRuntimeVersion: 'Runtime version',
+  otaLaunchSource: 'Loaded from',
+  otaEmbeddedSource: 'Embedded bundle',
+  otaDownloadedSource: 'OTA update',
+  otaUnknownSource: 'Unknown',
   networkTitle: 'Network inspection',
   networkBody:
     'Captured by the native DoKit engine and presented locally. Request and response contents are never uploaded by this package.',
