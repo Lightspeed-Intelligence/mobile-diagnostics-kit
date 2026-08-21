@@ -1,4 +1,5 @@
 #import "MobileDiagnostics.h"
+#import "MDKNativeDiagnosticsViewController.h"
 
 #import <DoraemonKit/DoraemonBaseViewController.h>
 #import <DoraemonKit/DoraemonKit.h>
@@ -237,7 +238,9 @@ static void MDKReplaceLegacyNetworkPlugin(
 @implementation MDKMobileDiagnostics
 
 + (void)install {
-  [self installWithOpenHandler:nil];
+  [self installWithOpenHandler:^(MDKDiagnosticsDestination destination) {
+    [MDKNativeDiagnosticsViewController presentDestination:destination];
+  }];
 }
 
 + (void)installWithOpenHandler:(MDKDiagnosticsOpenHandler)openHandler {

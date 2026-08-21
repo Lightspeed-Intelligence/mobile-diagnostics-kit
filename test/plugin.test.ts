@@ -328,9 +328,13 @@ describe('DoKit Expo config plugin', () => {
     expect(source).toContain('putString("responseBody"')
     expect(source).not.toContain('redact')
     expect(reactPackage).toContain('MobileDiagnosticsNetworkModule')
-    expect(nativeConfig.dependency.platforms).toEqual({
-      android: null,
-      ios: null,
+    expect(nativeConfig.dependency.platforms).toMatchObject({
+      android: {
+        sourceDir: './android',
+      },
+      ios: {
+        podspecPath: './ios/MobileDiagnosticsKit.podspec',
+      },
     })
   })
 

@@ -1,0 +1,12 @@
+<resources>
+  <string name="mobile_diagnostics_application_tools">Application Tools</string>
+  <string name="mobile_diagnostics_network">Network</string>
+  <string name="mobile_diagnostics_local_state">Local State</string>
+  <string name="mobile_diagnostics_expo_update">Expo Update</string>
+  <string name="mobile_diagnostics_back">Back</string>
+  <string name="mobile_diagnostics_clear">Clear requests</string>
+  <string name="mobile_diagnostics_check_update">Check and apply update</string>
+  <string name="mobile_diagnostics_no_requests">No captured requests</string>
+  <string name="mobile_diagnostics_no_state">No MMKV entries</string>
+  <string name="mobile_diagnostics_unavailable">Unavailable in this build</string>
+</resources>

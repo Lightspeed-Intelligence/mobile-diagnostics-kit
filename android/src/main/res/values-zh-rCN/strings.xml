@@ -1,0 +1,12 @@
+<resources>
+  <string name="mobile_diagnostics_application_tools">应用工具</string>
+  <string name="mobile_diagnostics_network">网络抓包</string>
+  <string name="mobile_diagnostics_local_state">本地状态</string>
+  <string name="mobile_diagnostics_expo_update">Expo 热更新</string>
+  <string name="mobile_diagnostics_back">返回</string>
+  <string name="mobile_diagnostics_clear">清空请求</string>
+  <string name="mobile_diagnostics_check_update">检查并应用更新</string>
+  <string name="mobile_diagnostics_no_requests">暂无已捕获请求</string>
+  <string name="mobile_diagnostics_no_state">暂无 MMKV 数据</string>
+  <string name="mobile_diagnostics_unavailable">当前构建不可用</string>
+</resources>

@@ -32,12 +32,15 @@
     "./plugin": "./plugin/withDoKit.js",
     "./plugin/withDoKit": "./plugin/withDoKit.js",
     "./app.plugin.js": "./app.plugin.js",
-    "./ios/MobileDiagnosticsKit.podspec": "./ios/MobileDiagnosticsKit.podspec"
+    "./ios/MobileDiagnosticsKit.podspec": "./ios/MobileDiagnosticsKit.podspec",
+    "./MobileDiagnosticsKit.podspec": "./MobileDiagnosticsKit.podspec"
   },
   "files": [
     "src",
     "plugin",
+    "android",
     "ios",
+    "MobileDiagnosticsKit.podspec",
     "react-native.config.js",
     "app.plugin.js",
     "README.md",

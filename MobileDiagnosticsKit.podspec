@@ -10,8 +10,8 @@ Pod::Spec.new do |s|
     :git => 'https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit.git',
     :tag => "v#{s.version}"
   }
-  s.source_files = 'Sources/**/*.{h,m,mm,swift}'
-  s.public_header_files = 'Sources/MobileDiagnostics.h'
+  s.source_files = 'ios/Sources/**/*.{h,m,mm,swift}'
+  s.public_header_files = 'ios/Sources/MobileDiagnostics.h'
   s.requires_arc = true
   s.swift_version = '5.9'
   s.pod_target_xcconfig = {

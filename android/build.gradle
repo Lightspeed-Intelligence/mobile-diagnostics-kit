@@ -1,0 +1,81 @@
+buildscript {
+  def kotlinVersion = rootProject.ext.has('kotlinVersion')
+    ? rootProject.ext.get('kotlinVersion')
+    : '2.0.21'
+
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+def safeExtGet(name, fallback) {
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : fallback
+}
+
+android {
+  namespace 'com.mobilediagnosticskit'
+  compileSdkVersion safeExtGet('compileSdkVersion', 35)
+
+  buildFeatures {
+    prefab true
+  }
+
+  defaultConfig {
+    minSdkVersion safeExtGet('minSdkVersion', 23)
+    targetSdkVersion safeExtGet('targetSdkVersion', 35)
+
+    externalNativeBuild {
+      cmake {
+        cppFlags '-std=c++17 -fexceptions -frtti'
+        arguments '-DANDROID_STL=c++_shared'
+      }
+    }
+
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+
+  externalNativeBuild {
+    cmake {
+      path 'CMakeLists.txt'
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = '17'
+  }
+}
+
+repositories {
+  google()
+  mavenCentral()
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'io.github.didi.dokit:dokitx:3.7.11'
+  implementation 'io.github.didi.dokit:dokitx-okhttp-v4:3.7.11'
+  implementation 'com.android.volley:volley:1.2.1'
+  implementation 'io.github.zhongwuzw:mmkv:2.2.4'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20250517'
+
+  def expoUpdatesProject = rootProject.findProject(':expo-updates')
+  if (expoUpdatesProject != null) {
+    compileOnly expoUpdatesProject
+  }
+}
