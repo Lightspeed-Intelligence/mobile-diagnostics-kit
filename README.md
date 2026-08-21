@@ -1,7 +1,7 @@
 # Mobile Diagnostics Kit
 
 Mobile Diagnostics Kit is a small, privacy-oriented DoKit extension for React
-Native and Expo applications. DoKit remains the only launcher: this package
+Native and Expo applications. DoKit remains the tool panel: this package
 registers `Local State` and `Expo Update` as custom tools inside DoKit, opens a
 polished React Native screen for the selected tool, and replaces the legacy iOS
 network list with an on-device inspector.
@@ -84,7 +84,22 @@ export function AppDiagnostics() {
 `enabled` defaults to `false`; `entries` defaults to an empty array. The
 component does not fall back to `__DEV__`, because an internal-flavoured bundle
 can still be embedded in a release configuration. It does not create a second
-launcher: DoKit is the only entry point.
+launcher by default: DoKit's native floating icon is the entry point.
+
+Android implements React Native `Modal` as a separate dialog window above the
+activity, which can cover DoKit's normal floating icon. A host that needs an
+entry inside such a modal can render the bounded proxy below. It opens the same
+native DoKit panel, renders only on Android, and defaults to disabled.
+
+```tsx
+import { MobileDiagnosticsModalLauncher } from 'mobile-diagnostics-kit'
+
+<MobileDiagnosticsModalLauncher
+  enabled={diagnosticsEnabled}
+  testID="diagnostics.modalLauncherButton"
+  topInset={safeAreaInsets.top}
+/>
+```
 
 `storage` is structural and works with an MMKV instance that implements the
 small `MMKVStorageLike` interface. `sourceBranch` is optional host-owned build

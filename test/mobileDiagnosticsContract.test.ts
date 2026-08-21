@@ -63,6 +63,24 @@ describe('React Native diagnostics presentation contract', () => {
     expect(index).toContain('createMobileDiagnosticsSurface')
   })
 
+  it('provides a bounded Android launcher for host-owned React Native modals', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+    const nativeLauncher = readFileSync(nativeLauncherPath, 'utf8')
+    const index = readFileSync(indexPath, 'utf8')
+
+    expect(source).toContain('export function MobileDiagnosticsModalLauncher')
+    expect(source).toContain("Platform.OS !== 'android'")
+    expect(source).toContain('<Pressable')
+    expect(source).toContain('accessibilityRole="button"')
+    expect(source).toContain('testID={testID}')
+    expect(source).toContain('top: topInset + MODAL_LAUNCHER_MARGIN')
+    expect(source).toContain('launcher.openPanel?.()')
+    expect(source).not.toContain('DoKit.showToolPanel()')
+    expect(nativeLauncher).toContain('openPanel?(): void')
+    expect(nativeLauncher).toContain('nativeModule?.showToolPanel?.()')
+    expect(index).toContain('MobileDiagnosticsModalLauncher')
+  })
+
   it('defaults native surface close to the package-owned presenter', () => {
     const source = readFileSync(sourcePath, 'utf8')
     const nativePresentation = readFileSync(nativePresentationPath, 'utf8')

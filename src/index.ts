@@ -1,9 +1,11 @@
 export {
   DEFAULT_STORAGE_ENTRIES,
   MobileDiagnostics,
+  MobileDiagnosticsModalLauncher,
   MobileDiagnosticsScreen,
   createMobileDiagnosticsSurface,
   type MobileDiagnosticsProps,
+  type MobileDiagnosticsModalLauncherProps,
   type MobileDiagnosticsScreenProps,
   type MobileDiagnosticsSurfaceOptions,
   type MobileDiagnosticsSurfaceProps,

@@ -89,6 +89,24 @@ describe('Android DoKit tool launch contract', () => {
     )
   })
 
+  it('opens the DoKit panel from an Android React Native modal launcher', () => {
+    const {
+      renderMobileDiagnosticsDoKitSource,
+      renderMobileDiagnosticsLauncherSource,
+    } = require('../plugin/withDoKit.js')
+
+    const doKit = renderMobileDiagnosticsDoKitSource('com.example.app')
+    const launcher = renderMobileDiagnosticsLauncherSource('com.example.app')
+
+    expect(launcher).toContain('@ReactMethod\n  fun showToolPanel()')
+    expect(launcher).toContain(
+      'MobileDiagnosticsDoKit.showToolPanelFromModal()'
+    )
+    expect(doKit).toContain('fun showToolPanelFromModal()')
+    expect(doKit).toContain('activity.window.decorView.post')
+    expect(doKit).toContain('DoKit.showToolPanel()')
+  })
+
   it('carries a pending panel return across activity recreation', () => {
     const { renderMobileDiagnosticsDoKitSource } = require(
       '../plugin/withDoKit.js'

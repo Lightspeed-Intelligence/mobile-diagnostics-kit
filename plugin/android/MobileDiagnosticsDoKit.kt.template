@@ -101,6 +101,16 @@ internal object MobileDiagnosticsDoKit {
     currentActivity?.let { scheduleToolPanelRestore(it) }
   }
 
+  fun showToolPanelFromModal() {
+    val activity = currentActivity ?: return
+    activity.window.decorView.post {
+      if (currentActivity !== activity ||
+          activity.isFinishing ||
+          activity.isDestroyed) return@post
+      DoKit.showToolPanel()
+    }
+  }
+
   private fun scheduleToolPanelRestore(activity: Activity) {
     panelRestoreGeneration += 1
     val generation = panelRestoreGeneration

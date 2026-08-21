@@ -7,12 +7,14 @@ import {
 export const DIAGNOSTICS_OPEN_EVENT = 'mobile-diagnostics-kit.open'
 
 export interface DiagnosticsLauncher {
+  openPanel?(): void
   restore?(): void
   returnToPanel?(): void
   subscribe(listener: (destination: DiagnosticsDestination) => void): () => void
 }
 
 interface NativeDiagnosticsLauncherModule {
+  showToolPanel?(): void
   restoreMainIcon(): void
   returnToToolPanel?(): void
 }
@@ -22,6 +24,9 @@ const nativeModule = NativeModules.MobileDiagnosticsLauncher as
   | undefined
 
 export const nativeDiagnosticsLauncher: DiagnosticsLauncher = {
+  openPanel() {
+    nativeModule?.showToolPanel?.()
+  },
   restore() {
     nativeModule?.restoreMainIcon()
   },

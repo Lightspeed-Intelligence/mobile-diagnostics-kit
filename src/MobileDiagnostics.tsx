@@ -1,9 +1,18 @@
-import { useEffect, useReducer, useRef, type ComponentType } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  type ComponentType,
+} from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   SafeAreaView,
+  StyleSheet,
+  Text,
 } from 'react-native'
 import {
   nativeDiagnosticsLauncher,
@@ -22,7 +31,7 @@ import type {
 } from './storageInspector'
 import { DiagnosticsContent } from './ui/DiagnosticsContent'
 import type { DiagnosticsLabels } from './ui/model'
-import { styles } from './ui/theme'
+import { colors, styles } from './ui/theme'
 
 export const DEFAULT_STORAGE_ENTRIES: readonly StorageEntryConfig[] = []
 
@@ -40,8 +49,17 @@ interface DiagnosticsBaseProps {
 }
 
 export interface MobileDiagnosticsProps extends DiagnosticsBaseProps {
-  /** DoKit's native custom kit is the only launcher. */
+  /** Native DoKit launcher used for tool selection and panel control. */
   launcher?: DiagnosticsLauncher
+}
+
+export interface MobileDiagnosticsModalLauncherProps {
+  accessibilityLabel?: string
+  enabled?: boolean
+  label?: string
+  launcher?: Pick<DiagnosticsLauncher, 'openPanel'>
+  testID?: string
+  topInset?: number
 }
 
 export interface MobileDiagnosticsScreenProps extends DiagnosticsBaseProps {
@@ -78,6 +96,50 @@ export function createMobileDiagnosticsSurface(
       />
     )
   }
+}
+
+const MODAL_LAUNCHER_MARGIN = 12
+
+/**
+ * Renders a bounded Android entry inside a host-owned React Native Modal.
+ * Android Dialog windows cover DoKit's activity-owned normal floating icon,
+ * so this proxy opens the same native DoKit panel without adding an overlay.
+ */
+export function MobileDiagnosticsModalLauncher({
+  accessibilityLabel,
+  enabled = false,
+  label = 'DoKit',
+  launcher = nativeDiagnosticsLauncher,
+  testID,
+  topInset = 0,
+}: MobileDiagnosticsModalLauncherProps) {
+  const buttonStyle = useMemo(
+    () => [
+      modalLauncherStyles.button,
+      { top: topInset + MODAL_LAUNCHER_MARGIN },
+    ],
+    [topInset]
+  )
+
+  if (!enabled || Platform.OS !== 'android' || !launcher.openPanel) return null
+
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityRole="button"
+      hitSlop={4}
+      onPress={(event) => {
+        event.stopPropagation()
+        launcher.openPanel?.()
+      }}
+      style={buttonStyle}
+      testID={testID}
+    >
+      <Text accessible={false} style={modalLauncherStyles.label}>
+        {label}
+      </Text>
+    </Pressable>
+  )
 }
 
 /**
@@ -185,3 +247,25 @@ export function MobileDiagnosticsScreen({
     </KeyboardAvoidingView>
   )
 }
+
+const modalLauncherStyles = StyleSheet.create({
+  button: {
+    alignItems: 'center',
+    backgroundColor: colors.raised,
+    borderColor: colors.accent,
+    borderCurve: 'continuous',
+    borderRadius: 24,
+    borderWidth: 2,
+    height: 48,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: MODAL_LAUNCHER_MARGIN,
+    width: 48,
+    zIndex: 1000,
+  },
+  label: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+})

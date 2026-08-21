@@ -56,6 +56,13 @@ internal class MobileDiagnosticsLauncherModule(
   override fun getName(): String = MODULE_NAME
 
   @ReactMethod
+  fun showToolPanel() {
+    reactApplicationContext.runOnUiQueueThread {
+      MobileDiagnosticsDoKit.showToolPanelFromModal()
+    }
+  }
+
+  @ReactMethod
   fun restoreMainIcon() {
     reactApplicationContext.runOnUiQueueThread {
       MobileDiagnosticsDoKit.restoreLauncherAfterInspector()
