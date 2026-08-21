@@ -27,7 +27,7 @@ This repository is not published to npm or CocoaPods. Pin a release tag or
 commit from GitHub:
 
 ```sh
-npm install github:Lightspeed-Intelligence/mobile-diagnostics-kit#v0.2.0
+npm install github:Lightspeed-Intelligence/mobile-diagnostics-kit#<reviewed-commit>
 ```
 
 ## Where the DoKit dependency lives
@@ -44,8 +44,8 @@ intentionally absent from `package.json.dependencies`:
 
 Mount the companion once near the application root. It renders no button or
 floating entry; it only listens for selections made from DoKit's native custom
-kits. The host owns the build gate, MMKV instance, allowed keys, copy, and Expo
-adapter.
+kits. The build owns whether the package is present; the host owns its MMKV
+instance, allowed keys, copy, and Expo adapter.
 
 ```tsx
 import * as Updates from 'expo-updates'
@@ -89,6 +89,12 @@ launcher: DoKit is the only entry point.
 small `MMKVStorageLike` interface. A non-Expo React Native app may omit
 `updates`; the Expo Update page will report that updates are unsupported.
 
+For a native shell that mounts named React Native surfaces, use
+`createMobileDiagnosticsSurface(options)`. The returned component is always
+enabled because calling the factory is the build-time opt-in. Its close action
+defaults to the package-owned native presenter, while a host can still provide
+an explicit `onClose` callback.
+
 ### Storage policy
 
 Each entry must use an exact key. Wildcards and automatic MMKV enumeration are
@@ -102,16 +108,12 @@ forking the UI.
 
 ## Expo Android + DoKit
 
-Include the config plugin only in the internal build configuration:
+Include the config plugin in the build configuration that contains the package:
 
 ```js
-const enableDiagnostics = process.env.MOBILE_DIAGNOSTICS === '1'
-
 module.exports = {
   expo: {
-    plugins: [
-      ...(enableDiagnostics ? ['mobile-diagnostics-kit'] : []),
-    ],
+    plugins: ['mobile-diagnostics-kit'],
   },
 }
 ```
@@ -128,29 +130,28 @@ the normal JS delivery path permitted by the host application.
 
 ## Native iOS + DoKit
 
-Keep the pod out of App Store configurations. For a local npm dependency in a
-brownfield shell, point CocoaPods at the package's `ios` directory:
+For a local npm dependency in a brownfield shell, point CocoaPods at the
+package's `ios` directory only in builds that opt into diagnostics:
 
 ```ruby
 pod 'MobileDiagnosticsKit',
-  :path => 'path/to/node_modules/mobile-diagnostics-kit/ios',
-  :configurations => ['Debug', 'QA']
+  :path => 'path/to/node_modules/mobile-diagnostics-kit/ios'
 ```
 
-Install the entry after the active `UIWindowScene` is connected and visible:
+Install the entry after the active `UIWindowScene` is connected and visible.
+The package owns the diagnostics view controller and guarded close behavior;
+the host supplies only its existing React Native surface view:
 
 ```swift
-#if DEBUG || INTERNAL_QA
 import MobileDiagnosticsKit
-#endif
 
 // SceneDelegate.scene(_:willConnectTo:options:), after makeKeyAndVisible()
-#if DEBUG || INTERNAL_QA
-MobileDiagnostics.install { destination in
-  let route = destination == .expoUpdate ? "ota" : "storage"
-  // Present the host's RN surface with `route` as its initial destination.
+MobileDiagnostics.install(in: navigationController) { initialDestination in
+  surfaceHost.surfaceView(
+    moduleName: "DiagnosticsSurface",
+    initialProperties: ["initialDestination": initialDestination]
+  )
 }
-#endif
 ```
 
 The wrapper disables DoKit 3.1.7's internal telemetry collector, registers

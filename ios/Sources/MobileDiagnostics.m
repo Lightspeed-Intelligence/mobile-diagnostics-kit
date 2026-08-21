@@ -3,8 +3,97 @@
 #import <DoraemonKit/DoraemonBaseViewController.h>
 #import <DoraemonKit/DoraemonKit.h>
 #import <DoraemonKit/DoraemonCacheManager.h>
+#import <React/RCTBridgeModule.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+
+@interface MDKDiagnosticsSurfaceViewController : UIViewController
+
+- (instancetype)initWithInitialDestination:(NSString *)initialDestination
+                            surfaceProvider:
+                                (MDKDiagnosticsSurfaceProvider)surfaceProvider;
+
+@end
+
+static __weak MDKDiagnosticsSurfaceViewController
+    *MDKActiveDiagnosticsSurfaceController = nil;
+
+@implementation MDKDiagnosticsSurfaceViewController {
+  NSString *_initialDestination;
+  MDKDiagnosticsSurfaceProvider _surfaceProvider;
+}
+
+- (instancetype)initWithInitialDestination:(NSString *)initialDestination
+                            surfaceProvider:
+                                (MDKDiagnosticsSurfaceProvider)surfaceProvider {
+  self = [super initWithNibName:nil bundle:nil];
+  if (self != nil) {
+    _initialDestination = [initialDestination copy];
+    _surfaceProvider = [surfaceProvider copy];
+  }
+  return self;
+}
+
+- (void)viewDidLoad {
+  [super viewDidLoad];
+  self.view.backgroundColor =
+      [UIColor colorWithRed:15.0 / 255.0
+                      green:23.0 / 255.0
+                       blue:42.0 / 255.0
+                      alpha:1.0];
+  self.view.accessibilityIdentifier = @"mobileDiagnostics.screen";
+
+  MDKDiagnosticsSurfaceProvider surfaceProvider = _surfaceProvider;
+  NSString *initialDestination = _initialDestination;
+  UIView *surface = surfaceProvider(initialDestination);
+  surface.frame = self.view.bounds;
+  surface.autoresizingMask =
+      UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+  [self.view addSubview:surface];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+  [super viewDidAppear:animated];
+  MDKActiveDiagnosticsSurfaceController = self;
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+  [super viewDidDisappear:animated];
+  if (MDKActiveDiagnosticsSurfaceController == self &&
+      (self.isMovingFromParentViewController ||
+       self.navigationController == nil)) {
+    MDKActiveDiagnosticsSurfaceController = nil;
+  }
+}
+
+@end
+
+@interface MDKDiagnosticsPresentationModule : NSObject <RCTBridgeModule>
+@end
+
+@implementation MDKDiagnosticsPresentationModule
+
+RCT_EXPORT_MODULE(MobileDiagnosticsPresentation)
+
++ (BOOL)requiresMainQueueSetup {
+  return NO;
+}
+
+RCT_EXPORT_METHOD(close) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    MDKDiagnosticsSurfaceViewController *controller =
+        MDKActiveDiagnosticsSurfaceController;
+    UINavigationController *navigationController =
+        controller.navigationController;
+    if (controller == nil ||
+        navigationController.topViewController != controller) {
+      return;
+    }
+    [navigationController popViewControllerAnimated:YES];
+  });
+}
+
+@end
 
 typedef void (*MDKViewWillAppearImplementation)(id, SEL, BOOL);
 
@@ -160,6 +249,48 @@ static void MDKReplaceLegacyNetworkPlugin(
     [[DoraemonManager shareInstance] install];
     MDKReplaceLegacyNetworkPlugin(manager, diagnosticsOpenHandler);
   });
+}
+
++ (void)installInNavigationController:
+            (UINavigationController *)navigationController
+                         surfaceProvider:
+            (MDKDiagnosticsSurfaceProvider)surfaceProvider {
+  __weak UINavigationController *weakNavigationController =
+      navigationController;
+  MDKDiagnosticsSurfaceProvider retainedSurfaceProvider =
+      [surfaceProvider copy];
+  [self installWithOpenHandler:^(MDKDiagnosticsDestination destination) {
+    void (^presentSurface)(void) = ^{
+      UINavigationController *strongNavigationController =
+          weakNavigationController;
+      if (strongNavigationController == nil) {
+        return;
+      }
+
+      NSString *initialDestination = @"storage";
+      switch (destination) {
+        case MDKDiagnosticsDestinationNetwork:
+          initialDestination = @"network";
+          break;
+        case MDKDiagnosticsDestinationExpoUpdate:
+          initialDestination = @"ota";
+          break;
+        case MDKDiagnosticsDestinationLocalState:
+          break;
+      }
+
+      MDKDiagnosticsSurfaceViewController *controller =
+          [[MDKDiagnosticsSurfaceViewController alloc]
+              initWithInitialDestination:initialDestination
+                          surfaceProvider:retainedSurfaceProvider];
+      [strongNavigationController pushViewController:controller animated:YES];
+    };
+    if ([NSThread isMainThread]) {
+      presentSurface();
+    } else {
+      dispatch_async(dispatch_get_main_queue(), presentSurface);
+    }
+  }];
 }
 
 @end

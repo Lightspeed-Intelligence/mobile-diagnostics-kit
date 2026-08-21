@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -10,6 +11,8 @@ typedef NS_ENUM(NSInteger, MDKDiagnosticsDestination) {
 
 typedef void (^MDKDiagnosticsOpenHandler)(
     MDKDiagnosticsDestination destination);
+typedef UIView * _Nonnull (^MDKDiagnosticsSurfaceProvider)(
+    NSString *initialDestination);
 
 NS_SWIFT_NAME(MobileDiagnostics)
 @interface MDKMobileDiagnostics : NSObject
@@ -22,6 +25,14 @@ NS_SWIFT_NAME(MobileDiagnostics)
 /// diagnostics UI. The handler receives only a stable, non-sensitive route.
 + (void)installWithOpenHandler:(nullable MDKDiagnosticsOpenHandler)openHandler
     NS_SWIFT_NAME(install(openHandler:));
+
+/// Installs DoKit and lets this package own the diagnostics controller and
+/// safe close behavior. The host supplies only its existing RN surface view.
++ (void)installInNavigationController:
+            (UINavigationController *)navigationController
+                         surfaceProvider:
+            (MDKDiagnosticsSurfaceProvider)surfaceProvider
+    NS_SWIFT_NAME(install(in:surfaceProvider:));
 
 @end
 

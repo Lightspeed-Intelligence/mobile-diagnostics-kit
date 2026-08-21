@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name = 'MobileDiagnosticsKit'
-  s.version = '0.2.0'
+  s.version = '0.3.0'
   s.summary = 'Privacy-oriented on-device diagnostics powered by DoKit.'
   s.homepage = 'https://github.com/Lightspeed-Intelligence/mobile-diagnostics-kit'
   s.license = { :type => 'MIT', :file => 'LICENSE' }

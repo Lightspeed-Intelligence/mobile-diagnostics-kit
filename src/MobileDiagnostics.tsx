@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, type ComponentType } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -9,6 +9,7 @@ import {
   nativeDiagnosticsLauncher,
   type DiagnosticsLauncher,
 } from './nativeLauncher'
+import { nativeDiagnosticsPresentation } from './nativePresentation'
 import type { UpdatesLike } from './otaController'
 import {
   initialDiagnosticsPresentation,
@@ -45,6 +46,36 @@ export interface MobileDiagnosticsScreenProps extends DiagnosticsBaseProps {
   initialDestination?: DiagnosticsDestination
   /** Host-owned dismissal for native presenters with hidden navigation chrome. */
   onClose?: () => void
+}
+
+export interface MobileDiagnosticsSurfaceProps {
+  initialDestination?: DiagnosticsDestination
+}
+
+export type MobileDiagnosticsSurfaceOptions = Omit<
+  MobileDiagnosticsScreenProps,
+  'enabled' | 'initialDestination'
+>
+
+/**
+ * Creates a host-neutral AppRegistry surface for an injected native presenter.
+ * Calling this factory is the build-time opt-in, so the returned surface is
+ * always enabled and needs no runtime environment flag.
+ */
+export function createMobileDiagnosticsSurface(
+  options: MobileDiagnosticsSurfaceOptions
+): ComponentType<MobileDiagnosticsSurfaceProps> {
+  return function MobileDiagnosticsSurface({
+    initialDestination = 'storage',
+  }: MobileDiagnosticsSurfaceProps) {
+    return (
+      <MobileDiagnosticsScreen
+        {...options}
+        enabled
+        initialDestination={initialDestination}
+      />
+    )
+  }
 }
 
 /**
@@ -119,7 +150,7 @@ export function MobileDiagnostics({
 export function MobileDiagnosticsScreen({
   enabled = false,
   initialDestination = 'storage',
-  onClose,
+  onClose = nativeDiagnosticsPresentation.close,
   ...contentProps
 }: MobileDiagnosticsScreenProps) {
   if (!enabled) return null

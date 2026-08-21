@@ -48,6 +48,22 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('icon:@"doraemon_file_sync"')
   })
 
+  it('owns generic navigation and RN surface presentation behind an additive API', () => {
+    const header = read('ios/Sources/MobileDiagnostics.h')
+    const source = read('ios/Sources/MobileDiagnostics.m')
+
+    expect(header).toContain('MDKDiagnosticsSurfaceProvider')
+    expect(header).toContain('installInNavigationController:')
+    expect(header).toContain('surfaceProvider:')
+    expect(header).toContain('NS_SWIFT_NAME(install(in:surfaceProvider:))')
+    expect(source).toContain('MDKDiagnosticsSurfaceViewController')
+    expect(source).toContain('surfaceProvider(initialDestination)')
+    expect(source).toContain('navigationController.topViewController != controller')
+    expect(source).toContain('RCT_EXPORT_MODULE(MobileDiagnosticsPresentation)')
+    expect(source).toContain('RCT_EXPORT_METHOD(close)')
+    expect(source).not.toContain('Tipsy')
+  })
+
   it('uses a system-managed back item on DoKit child pages', () => {
     const source = read('ios/Sources/MobileDiagnostics.m')
     const installNavigationPatch = source.indexOf(

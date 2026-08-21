@@ -26,6 +26,14 @@ const modelPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../src/ui/model.ts'
 )
+const indexPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../src/index.ts'
+)
+const nativePresentationPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../src/nativePresentation.ts'
+)
 
 describe('React Native diagnostics presentation contract', () => {
   it('opens DoKit destinations as a full-screen page instead of a drawer', () => {
@@ -39,6 +47,26 @@ describe('React Native diagnostics presentation contract', () => {
     expect(modal).toContain('transparent={false}')
     expect(modal).toContain('<MobileDiagnosticsScreen')
     expect(modal).not.toContain('style={styles.sheet}')
+  })
+
+  it('provides an always-enabled surface factory for build-time injection', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+    const index = readFileSync(indexPath, 'utf8')
+
+    expect(source).toContain('export function createMobileDiagnosticsSurface')
+    expect(source).toContain('<MobileDiagnosticsScreen')
+    expect(source).toContain('enabled')
+    expect(index).toContain('createMobileDiagnosticsSurface')
+  })
+
+  it('defaults native surface close to the package-owned presenter', () => {
+    const source = readFileSync(sourcePath, 'utf8')
+    const nativePresentation = readFileSync(nativePresentationPath, 'utf8')
+
+    expect(source).toContain('onClose = nativeDiagnosticsPresentation.close')
+    expect(nativePresentation).toContain('MobileDiagnosticsPresentation')
+    expect(nativePresentation).toContain('nativeModule?.close()')
+    expect(nativePresentation).not.toContain('Tipsy')
   })
 
   it('returns explicit closes to DoKit after the modal hidden state commits', () => {

@@ -1,6 +1,6 @@
 {
   "name": "mobile-diagnostics-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "On-device diagnostics for React Native and Expo apps, powered by DoKit",
   "keywords": [
     "react-native",

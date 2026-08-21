@@ -2,14 +2,21 @@ export {
   DEFAULT_STORAGE_ENTRIES,
   MobileDiagnostics,
   MobileDiagnosticsScreen,
+  createMobileDiagnosticsSurface,
   type MobileDiagnosticsProps,
   type MobileDiagnosticsScreenProps,
+  type MobileDiagnosticsSurfaceOptions,
+  type MobileDiagnosticsSurfaceProps,
 } from './MobileDiagnostics'
 export {
   DIAGNOSTICS_OPEN_EVENT,
   nativeDiagnosticsLauncher,
   type DiagnosticsLauncher,
 } from './nativeLauncher'
+export {
+  nativeDiagnosticsPresentation,
+  type DiagnosticsPresentationController,
+} from './nativePresentation'
 export {
   initialDiagnosticsPresentation,
   parseDiagnosticsDestination,
