@@ -69,9 +69,12 @@ internal object MobileDiagnosticsLauncherOverlay {
       (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed)
     ) return
 
-    val target = findTopmostReactModalDecor(activity.window.decorView)
-      ?: (activity.window.decorView as? ViewGroup)
-      ?: return
+    val root = activity.window.decorView
+    if (hasVisibleReactModal(root)) {
+      detachLauncher()
+      return
+    }
+    val target = root as? ViewGroup ?: return
     if (launcher?.parent === target && launcher?.isAttachedToWindow == true) return
 
     detachLauncher()
@@ -98,10 +101,11 @@ internal object MobileDiagnosticsLauncherOverlay {
     positionLauncher(button, target, size)
   }
 
-  private fun findTopmostReactModalDecor(root: View): ViewGroup? {
-    var topmost: ViewGroup? = null
+  private fun hasVisibleReactModal(root: View): Boolean {
+    var visible = false
 
     fun visit(view: View) {
+      if (visible) return
       if (view.javaClass.name == REACT_MODAL_HOST_VIEW) {
         val dialog = runCatching {
           view.javaClass.methods
@@ -109,7 +113,8 @@ internal object MobileDiagnosticsLauncherOverlay {
             ?.invoke(view) as? Dialog
         }.getOrNull()
         if (dialog?.isShowing == true) {
-          (dialog.window?.decorView as? ViewGroup)?.let { topmost = it }
+          visible = true
+          return
         }
       }
       if (view is ViewGroup) {
@@ -118,7 +123,7 @@ internal object MobileDiagnosticsLauncherOverlay {
     }
 
     visit(root)
-    return topmost
+    return visible
   }
 
   private fun positionLauncher(view: View, parent: ViewGroup, size: Int) {
