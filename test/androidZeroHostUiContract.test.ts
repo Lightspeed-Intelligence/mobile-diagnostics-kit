@@ -102,15 +102,36 @@ describe('Android zero-host diagnostics UI contract', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
     )
+    const interceptor = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsImageInterceptor.kt'
+    )
+    const store = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsImageStore.kt'
+    )
+    const doKit = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsDoKit.kt'
+    )
 
     expect(activity).toContain('ImageView')
     expect(activity).toContain('imageResponseContent(')
-    expect(activity).toContain('loadNetworkImagePreview(')
-    expect(activity).toContain('withContext(Dispatchers.IO)')
-    expect(activity).toContain('HttpURLConnection')
+    expect(activity).toContain('MobileDiagnosticsImageStore.get(record.mRequestId)')
     expect(activity).toContain('BitmapFactory.Options().apply')
-    expect(activity).toContain('MAX_IMAGE_PREVIEW_BYTES')
-    expect(activity).toContain('request?.method.orEmpty().uppercase(Locale.ROOT) != "GET"')
+    expect(activity).toContain('MobileDiagnosticsImageStore.clear()')
+    expect(activity).not.toContain('loadNetworkImagePreview(')
+    expect(activity).not.toContain('HttpURLConnection')
+    expect(interceptor).toContain('NetworkManager.isActive()')
+    expect(interceptor).toContain('response.peekBody(MAX_IMAGE_BYTES + 1L)')
+    expect(interceptor).toContain('NetworkInterpreter.get().createRecord(')
+    expect(interceptor).toContain('OkHttpInspectorRequest(')
+    expect(interceptor).toContain('OkHttpInspectorResponse(')
+    expect(interceptor).toContain('MobileDiagnosticsImageStore.put(')
+    expect(store).toContain('MAX_TOTAL_BYTES')
+    expect(store).toContain('MAX_ENTRIES')
+    expect(store).toContain('removeEldestEntry()')
+    expect(doKit).toContain('.addInterceptor(MobileDiagnosticsImageInterceptor())')
+    expect(
+      doKit.indexOf('.addInterceptor(MobileDiagnosticsImageInterceptor())')
+    ).toBeLessThan(doKit.indexOf('.addInterceptor(DokitCapInterceptor())'))
   })
 
   it('keeps current-build information and the established OTA action card', () => {

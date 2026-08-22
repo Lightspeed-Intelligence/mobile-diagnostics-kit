@@ -98,6 +98,14 @@ describe('DoKit Expo config plugin', () => {
     expect(buildGradle.match(/dokitx-okhttp-v4:3\.7\.11/g)).toHaveLength(1)
     expect(application.match(/disableUpload\(\)/g)).toHaveLength(1)
     expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
+    expect(application.match(/MobileDiagnosticsImageInterceptor/g)).toHaveLength(2)
+    expect(
+      application.indexOf(
+        '.addInterceptor(MobileDiagnosticsImageInterceptor())'
+      )
+    ).toBeLessThan(
+      application.indexOf('.addInterceptor(DokitCapInterceptor())')
+    )
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(
@@ -150,6 +158,18 @@ describe('DoKit Expo config plugin', () => {
       'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
+    expect(
+      application.match(
+        /\.addInterceptor\(MobileDiagnosticsImageInterceptor\(\)\)/g
+      )
+    ).toHaveLength(1)
+    expect(
+      application.indexOf(
+        '.addInterceptor(MobileDiagnosticsImageInterceptor())'
+      )
+    ).toBeLessThan(
+      application.indexOf('.addInterceptor(DokitCapInterceptor())')
+    )
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(application).toContain('.putString("float_start_mode", "normal")')

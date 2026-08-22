@@ -38,9 +38,6 @@ import com.didichuxing.doraemonkit.kit.network.NetworkManager
 import com.didichuxing.doraemonkit.kit.network.bean.NetworkRecord
 import expo.modules.updates.IUpdatesController
 import expo.modules.updates.UpdatesController
-import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -985,27 +982,25 @@ class MobileDiagnosticsActivity : Activity() {
       addView(preview, LinearLayout.LayoutParams(MATCH, WRAP))
       addView(status, LinearLayout.LayoutParams(MATCH, WRAP))
     }
-    val request = record.mRequest
-    val scheme = runCatching { Uri.parse(request?.url.orEmpty()).scheme }
-      .getOrNull()?.lowercase(Locale.ROOT)
-    if (
-      request?.method.orEmpty().uppercase(Locale.ROOT) != "GET" ||
-      (scheme != "http" && scheme != "https")
-    ) {
+    val bytes = MobileDiagnosticsImageStore.get(record.mRequestId)
+    if (bytes == null) {
       status.text = getString(R.string.mobile_diagnostics_image_preview_unavailable)
       return content
     }
 
     scope.launch {
-      loadNetworkImagePreview(record).onSuccess { loaded ->
+      val loaded = withContext(Dispatchers.Default) {
+        runCatching { NetworkImagePreview(decodeImagePreview(bytes), bytes.size) }
+      }
+      loaded.onSuccess { image ->
         if (selectedNetworkRecord !== record) return@onSuccess
-        preview.setImageBitmap(loaded.bitmap)
+        preview.setImageBitmap(image.bitmap)
         preview.visibility = View.VISIBLE
         status.text = getString(
           R.string.mobile_diagnostics_image_preview_loaded,
-          loaded.bitmap.width,
-          loaded.bitmap.height,
-          formatBytes(loaded.byteCount.toLong()),
+          image.bitmap.width,
+          image.bitmap.height,
+          formatBytes(image.byteCount.toLong()),
         )
       }.onFailure {
         if (selectedNetworkRecord === record) {
@@ -1014,51 +1009,6 @@ class MobileDiagnosticsActivity : Activity() {
       }
     }
     return content
-  }
-
-  private suspend fun loadNetworkImagePreview(
-    record: NetworkRecord,
-  ): Result<NetworkImagePreview> = withContext(Dispatchers.IO) {
-    runCatching {
-      val request = requireNotNull(record.mRequest)
-      val connection = URL(request.url).openConnection() as HttpURLConnection
-      val bytes = try {
-        connection.requestMethod = "GET"
-        connection.connectTimeout = IMAGE_PREVIEW_TIMEOUT_MS
-        connection.readTimeout = IMAGE_PREVIEW_TIMEOUT_MS
-        connection.instanceFollowRedirects = true
-        connection.useCaches = true
-        headerPairs(request.headers).forEach { (name, value) ->
-          if (isForwardableImageHeader(name)) {
-            connection.setRequestProperty(name, value)
-          }
-        }
-        val status = connection.responseCode
-        check(status in 200..299)
-        val expectedLength = connection.contentLengthLong
-        check(expectedLength <= 0L || expectedLength <= MAX_IMAGE_PREVIEW_BYTES)
-        connection.inputStream.use { input ->
-          ByteArrayOutputStream(
-            expectedLength.takeIf { it in 1..MAX_IMAGE_PREVIEW_BYTES }
-              ?.toInt() ?: DEFAULT_BUFFER_SIZE,
-          ).use { output ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            var total = 0
-            while (true) {
-              val count = input.read(buffer)
-              if (count < 0) break
-              total += count
-              check(total <= MAX_IMAGE_PREVIEW_BYTES)
-              output.write(buffer, 0, count)
-            }
-            output.toByteArray()
-          }
-        }
-      } finally {
-        connection.disconnect()
-      }
-      NetworkImagePreview(decodeImagePreview(bytes), bytes.size)
-    }
   }
 
   private fun decodeImagePreview(bytes: ByteArray): Bitmap {
@@ -1080,9 +1030,6 @@ class MobileDiagnosticsActivity : Activity() {
     }
     return requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options))
   }
-
-  private fun isForwardableImageHeader(name: String): Boolean =
-    name.lowercase(Locale.ROOT) !in IMAGE_PREVIEW_SKIPPED_HEADERS
 
   private fun collapsibleSection(
     title: String,
@@ -1256,6 +1203,7 @@ class MobileDiagnosticsActivity : Activity() {
       .setPositiveButton(getString(R.string.mobile_diagnostics_clear)) { _, _ ->
         val records = NetworkManager.get().records
         synchronized(records) { records.clear() }
+        MobileDiagnosticsImageStore.clear()
         refreshNetworkContent()
       }
       .show()
@@ -1673,19 +1621,9 @@ class MobileDiagnosticsActivity : Activity() {
     private const val FILTER_ERRORS = "errors"
     private const val NETWORK_REFRESH_INTERVAL_MS = 1_000L
     private const val MAX_BODY_CHARACTERS = 120_000
-    private const val MAX_IMAGE_PREVIEW_BYTES = 12 * 1024 * 1024
     private const val MAX_IMAGE_PREVIEW_DIMENSION = 2_048
     private const val MAX_IMAGE_PREVIEW_PIXELS = 4_000_000L
-    private const val IMAGE_PREVIEW_TIMEOUT_MS = 10_000
     private val FETCH_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
-    private val IMAGE_PREVIEW_SKIPPED_HEADERS = setOf(
-      "accept-encoding",
-      "connection",
-      "content-length",
-      "host",
-      "range",
-      "transfer-encoding",
-    )
     private val IMAGE_EXTENSION = Regex("\\.(?:png|jpe?g|gif|webp|svg|avif|heic)$", RegexOption.IGNORE_CASE)
     private val MEDIA_EXTENSION = Regex("\\.(?:mp4|mov|m4v|webm|mp3|m4a|wav|aac|ogg)$", RegexOption.IGNORE_CASE)
     private val SURFACE = Color.rgb(17, 24, 39)

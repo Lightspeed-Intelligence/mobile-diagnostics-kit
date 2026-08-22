@@ -89,9 +89,9 @@
   <string name="mobile_diagnostics_binary_body">二进制响应正文 · %1$s · 无法预览文本</string>
   <string name="mobile_diagnostics_body_truncated">内容过长，已截断本机预览</string>
   <string name="mobile_diagnostics_image_preview">图片响应预览</string>
-  <string name="mobile_diagnostics_image_preview_loading">正在从原请求地址加载图片预览…</string>
-  <string name="mobile_diagnostics_image_preview_loaded">已从原地址加载 · %1$d × %2$d · %3$s</string>
-  <string name="mobile_diagnostics_image_preview_unavailable">无法预览图片；Android DoKit 未保留图片正文，原请求地址也无法重新加载。</string>
+  <string name="mobile_diagnostics_image_preview_loading">正在解析已捕获的图片响应…</string>
+  <string name="mobile_diagnostics_image_preview_loaded">已捕获响应 · %1$d × %2$d · %3$s</string>
+  <string name="mobile_diagnostics_image_preview_unavailable">无法预览图片；捕获的正文不可用、超出本机限制，或图片格式不受支持。</string>
   <string name="mobile_diagnostics_ota_title">检查 Expo 热更新</string>
   <string name="mobile_diagnostics_ota_description">使用当前安装包的运行时和频道；不接受任意更新地址，也不展示更新清单详情。</string>
   <string name="mobile_diagnostics_ota_ready">可以检查当前运行时和频道的更新</string>
