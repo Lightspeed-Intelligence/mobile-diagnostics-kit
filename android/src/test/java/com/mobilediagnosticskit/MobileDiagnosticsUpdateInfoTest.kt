@@ -30,6 +30,21 @@ class MobileDiagnosticsUpdateInfoTest {
   }
 
   @Test
+  fun readsExplicitSourceBranchFromExpoClientConfig() {
+    val manifest = """
+      {
+        "metadata":{"branchName":"fe-release-1-4-6-debug"},
+        "extra":{"expoClient":{"extra":{"sourceBranch":"release/1.4.6"}}}
+      }
+    """.trimIndent()
+
+    assertEquals(
+      "release/1.4.6",
+      MobileDiagnosticsUpdateInfo.sourceBranch(manifest),
+    )
+  }
+
+  @Test
   fun ignoresMalformedOrMissingManifestData() {
     assertNull(MobileDiagnosticsUpdateInfo.sourceBranch(null))
     assertNull(MobileDiagnosticsUpdateInfo.sourceBranch("not-json"))

@@ -39,6 +39,23 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).not.toContain('android.widget.Button')
   })
 
+  it('places local-state details directly after the selected entry', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+    const loop = activity.slice(
+      activity.indexOf('filtered.forEach { entry ->'),
+      activity.indexOf('private fun storageCard(')
+    )
+
+    expect(loop).toContain('if (entry.key == selectedStorageKey) {')
+    expect(loop).toContain('container.addView(renderStorageDetail(entry))')
+    expect(loop).not.toContain('scrollView.smoothScrollTo(0, container.bottom)')
+    expect(loop).not.toContain(
+      'entries.firstOrNull { it.key == selectedStorageKey }'
+    )
+  })
+
   it('edits and deletes non-sensitive MMKV entries without changing their native type', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'

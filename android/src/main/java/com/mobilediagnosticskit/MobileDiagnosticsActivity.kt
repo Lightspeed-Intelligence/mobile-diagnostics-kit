@@ -222,12 +222,12 @@ class MobileDiagnosticsActivity : Activity() {
       storageQuery,
     ) { query ->
       storageQuery = query
-      updateStorageList(entries, storageList, scroll.view)
+      updateStorageList(entries, storageList)
     }.withTopMargin(10))
 
     storageList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
     scroll.column.addView(storageList)
-    updateStorageList(entries, storageList, scroll.view)
+    updateStorageList(entries, storageList)
     body.addView(scroll.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
   }
 
@@ -247,7 +247,6 @@ class MobileDiagnosticsActivity : Activity() {
   private fun updateStorageList(
     entries: List<MobileDiagnosticsStorageEntry>,
     container: LinearLayout,
-    scrollView: ScrollView,
   ) {
     container.removeAllViews()
     val filtered = filterStorageEntries(entries, storageQuery)
@@ -260,13 +259,12 @@ class MobileDiagnosticsActivity : Activity() {
       filtered.forEach { entry ->
         container.addView(storageCard(entry, entry.key == selectedStorageKey) {
           selectedStorageKey = entry.key
-          updateStorageList(entries, container, scrollView)
-          scrollView.post { scrollView.smoothScrollTo(0, container.bottom) }
+          updateStorageList(entries, container)
         })
+        if (entry.key == selectedStorageKey) {
+          container.addView(renderStorageDetail(entry))
+        }
       }
-    }
-    entries.firstOrNull { it.key == selectedStorageKey }?.let { entry ->
-      container.addView(renderStorageDetail(entry))
     }
   }
 

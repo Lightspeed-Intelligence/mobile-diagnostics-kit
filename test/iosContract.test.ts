@@ -189,7 +189,7 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('addStorageValueRowsForEntry:')
     expect(source).toContain('toStack:')
     expect(source).toContain('refreshStorage')
-    expect(source).toContain('scrollRectToVisible:')
+    expect(source).not.toContain('scrollRectToVisible:')
     expect(source).toContain('NSJSONWritingFragmentsAllowed')
     expect(source).toContain('storageTop.axis = UILayoutConstraintAxisHorizontal')
     expect(source).toContain('key.numberOfLines = 2')
@@ -202,6 +202,28 @@ describe('iOS DoKit wrapper', () => {
     expect(emptyResult).toBeGreaterThan(-1)
     expect(enumerateResults).toBeGreaterThan(emptyResult)
     expect(source.slice(emptyResult, enumerateResults)).not.toContain('return;')
+
+    const addRow = source.indexOf(
+      '[self->_storageResults addArrangedSubview:row];',
+      enumerateResults
+    )
+    const addDetail = source.indexOf(
+      '[self->_storageResults addArrangedSubview:self->_storageDetailView];',
+      addRow
+    )
+    const enumerationEnd = source.indexOf('}];', addRow)
+    expect(addRow).toBeGreaterThan(enumerateResults)
+    expect(addDetail).toBeGreaterThan(addRow)
+    expect(addDetail).toBeLessThan(enumerationEnd)
+    expect(source).not.toContain('NSDictionary *selected = nil;')
+  })
+
+  it('reads the exact Flow source branch from Expo client config', () => {
+    const source = read('ios/Sources/MDKExpoUpdatesAdapter.swift')
+
+    expect(source).toContain('let expoClient = extra["expoClient"] as? [String: Any]')
+    expect(source).toContain('let clientExtra = expoClient["extra"] as? [String: Any]')
+    expect(source).toContain('clientExtra["sourceBranch"] as? String')
   })
 
   it('edits and deletes non-sensitive MMKV entries while preserving native types', () => {

@@ -65,6 +65,17 @@ final class MDKExpoUpdatesAdapter: NSObject {
     }
 
     private static func sourceBranch(in manifest: [String: Any]) -> String? {
+        if let extra = manifest["extra"] as? [String: Any] {
+            if let value = extra["sourceBranch"] as? String, !value.isEmpty {
+                return value
+            }
+            if let expoClient = extra["expoClient"] as? [String: Any],
+               let clientExtra = expoClient["extra"] as? [String: Any],
+               let value = clientExtra["sourceBranch"] as? String,
+               !value.isEmpty {
+                return value
+            }
+        }
         if let value = manifest["branchName"] as? String, !value.isEmpty {
             return value
         }
@@ -74,9 +85,6 @@ final class MDKExpoUpdatesAdapter: NSObject {
             return value
         }
         if let extra = manifest["extra"] as? [String: Any] {
-            if let value = extra["sourceBranch"] as? String, !value.isEmpty {
-                return value
-            }
             if let eas = extra["eas"] as? [String: Any],
                let value = eas["branchName"] as? String,
                !value.isEmpty {

@@ -752,27 +752,19 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_filteredStorageEntries enumerateObjectsUsingBlock:^(
                                NSDictionary *entry, NSUInteger index,
                                __unused BOOL *stop) {
+    BOOL selected = [entry[@"key"] isEqualToString:self->_selectedStorageKey];
     UIButton *row = [self storageEntryButton:entry
-                                    selected:[entry[@"key"]
-                                                 isEqualToString:self->_selectedStorageKey]];
+                                    selected:selected];
     row.tag = index;
     [row addTarget:self
                   action:@selector(showStorageDetail:)
         forControlEvents:UIControlEventTouchUpInside];
     [self->_storageResults addArrangedSubview:row];
-  }];
-
-  NSDictionary *selected = nil;
-  for (NSDictionary *entry in _storageEntries) {
-    if ([entry[@"key"] isEqualToString:_selectedStorageKey]) {
-      selected = entry;
-      break;
+    if (selected) {
+      self->_storageDetailView = [self storageDetailCard:entry];
+      [self->_storageResults addArrangedSubview:self->_storageDetailView];
     }
-  }
-  if (selected != nil) {
-    _storageDetailView = [self storageDetailCard:selected];
-    [_storageResults addArrangedSubview:_storageDetailView];
-  }
+  }];
 }
 
 - (void)showStorageDetail:(UIButton *)sender {
@@ -781,15 +773,6 @@ static UIViewController *MDKApplicationTopViewController(void) {
   }
   _selectedStorageKey = _filteredStorageEntries[sender.tag][@"key"];
   [self renderStorageResults];
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (self->_storageDetailView == nil) {
-      return;
-    }
-    CGRect detailRect = [self->_storageDetailView
-        convertRect:self->_storageDetailView.bounds
-             toView:self->_scrollView];
-    [self->_scrollView scrollRectToVisible:detailRect animated:YES];
-  });
 }
 
 - (UIButton *)storageEntryButton:(NSDictionary *)entry selected:(BOOL)selected {
