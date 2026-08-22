@@ -204,6 +204,20 @@ describe('iOS DoKit wrapper', () => {
     expect(source.slice(emptyResult, enumerateResults)).not.toContain('return;')
   })
 
+  it('edits and deletes non-sensitive MMKV entries while preserving native types', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('saveStorageEntry')
+    expect(source).toContain('confirmDeleteStorageEntry')
+    expect(source).toContain('MDKWriteStorageEntry(')
+    expect(source).toContain('MDKRemoveStorageEntry(')
+    expect(source).toContain('!MDKJSONContainsSensitiveField(parsed)')
+    expect(source).toContain('storage->set(numberValue, key)')
+    expect(source).toContain('storage->set(booleanValue, key)')
+    expect(source).toContain('storage->set(value, key)')
+    expect(source).toContain('storage->removeValueForKey(key)')
+  })
+
   it('restores network metrics, capture controls, filters, and full request details', () => {
     const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
 

@@ -11,6 +11,8 @@
 #import <objc/message.h>
 #import <UIKit/UIKit.h>
 
+#include <cmath>
+
 static UIColor *MDKColor(NSUInteger hex) {
   return [UIColor colorWithRed:((hex >> 16) & 0xff) / 255.0
                          green:((hex >> 8) & 0xff) / 255.0
@@ -51,8 +53,14 @@ static NSString *MDKStorageSearchPlaceholder(void) {
 
 static NSString *MDKStorageReadOnlyText(void) {
   return MDKText(
-      @"This automatically discovered entry is read-only. Selectable values can be copied.",
-      @"该条目由工具自动发现，因此只读；可长按复制已展示的值。");
+      @"This entry contains protected or unsupported data, so it remains read-only.",
+      @"该条目包含受保护或不支持的数据，因此保持只读。");
+}
+
+static NSString *MDKStorageEditableText(void) {
+  return MDKText(
+      @"Edit the complete stored value below. Saving preserves its MMKV string, number, or boolean type.",
+      @"可在下方编辑完整值；保存时会保持原有 MMKV 字符串、数字或布尔类型。");
 }
 
 static NSString *MDKCurrentBundleTitle(void) {
@@ -103,6 +111,24 @@ static id MDKSanitizeJSON(id value) {
     return result;
   }
   return value ?: NSNull.null;
+}
+
+static BOOL MDKJSONContainsSensitiveField(id value) {
+  if ([value isKindOfClass:NSDictionary.class]) {
+    for (id key in (NSDictionary *)value) {
+      if (MDKIsSensitiveName([key description]) ||
+          MDKJSONContainsSensitiveField(((NSDictionary *)value)[key])) {
+        return YES;
+      }
+    }
+  } else if ([value isKindOfClass:NSArray.class]) {
+    for (id child in (NSArray *)value) {
+      if (MDKJSONContainsSensitiveField(child)) {
+        return YES;
+      }
+    }
+  }
+  return NO;
 }
 
 static NSString *MDKPrettyJSONString(NSString *rawValue) {
@@ -211,7 +237,7 @@ static NSString *MDKMMKVRootPath(void) {
   return [documents URLByAppendingPathComponent:@"mmkv" isDirectory:YES].path;
 }
 
-static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) {
+static mmkv::MMKV *MDKDefaultStorage(void) {
   NSString *rootPath = MDKMMKVRootPath();
   [NSFileManager.defaultManager createDirectoryAtPath:rootPath
                           withIntermediateDirectories:YES
@@ -221,6 +247,11 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) 
   mmkv::MMKV::initializeMMKV(root, mmkv::MMKVLogWarning);
   mmkv::MMKV *storage = mmkv::MMKV::mmkvWithID(
       DEFAULT_MMAP_ID, mmkv::MMKV_SINGLE_PROCESS, nullptr, &root);
+  return storage;
+}
+
+static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) {
+  mmkv::MMKV *storage = MDKDefaultStorage();
   if (storage == nullptr) {
     return @[];
   }
@@ -229,27 +260,40 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) 
   for (NSString *key in storage->allKeysObjC()) {
     std::string stringValue;
     NSString *display = nil;
+    NSString *kind = @"binary";
     if (storage->getString(key, stringValue)) {
       display = [[NSString alloc]
           initWithBytes:stringValue.data()
                  length:stringValue.size()
                encoding:NSUTF8StringEncoding];
+      if (display != nil) {
+        kind = @"string";
+      }
     } else {
       bool hasNumber = false;
       double numberValue = storage->getDouble(key, 0.0, &hasNumber);
       if (hasNumber) {
         display = [NSString stringWithFormat:@"%.15g", numberValue];
+        kind = @"number";
       } else {
         bool hasBoolean = false;
         bool booleanValue = storage->getBool(key, false, &hasBoolean);
         if (hasBoolean) {
           display = booleanValue ? @"true" : @"false";
+          kind = @"boolean";
         }
       }
     }
+    NSString *rawValue = display ?: @"<binary or unreadable>";
+    id parsed = MDKParseJSONValue(rawValue);
+    BOOL canMutate = ![kind isEqualToString:@"binary"] &&
+                     !MDKIsSensitiveName(key) &&
+                     !MDKJSONContainsSensitiveField(parsed);
     [entries addObject:@{
       @"key" : key,
-      @"value" : MDKDisplayString(key, display ?: @"<binary or unreadable>"),
+      @"kind" : kind,
+      @"value" : MDKDisplayString(key, rawValue),
+      @"canMutate" : canMutate ? @"true" : @"false",
     }];
   }
   [entries sortUsingComparator:^NSComparisonResult(NSDictionary *left,
@@ -257,6 +301,57 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *MDKStorageEntries(void) 
     return [left[@"key"] localizedCaseInsensitiveCompare:right[@"key"]];
   }];
   return entries;
+}
+
+static BOOL MDKWriteStorageEntry(NSDictionary<NSString *, NSString *> *entry,
+                                 NSString *editorText) {
+  if (![entry[@"canMutate"] boolValue]) {
+    return NO;
+  }
+  mmkv::MMKV *storage = MDKDefaultStorage();
+  std::string key = entry[@"key"].UTF8String ?: "";
+  NSString *kind = entry[@"kind"];
+  if (storage == nullptr || key.empty()) {
+    return NO;
+  }
+  if ([kind isEqualToString:@"string"]) {
+    std::string value = editorText.UTF8String ?: "";
+    return storage->set(value, key);
+  }
+  NSString *trimmed = [editorText
+      stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  if ([kind isEqualToString:@"number"]) {
+    NSScanner *scanner = [NSScanner scannerWithString:trimmed];
+    scanner.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    double numberValue = 0.0;
+    if (![scanner scanDouble:&numberValue] || !scanner.isAtEnd ||
+        !std::isfinite(numberValue)) {
+      return NO;
+    }
+    return storage->set(numberValue, key);
+  }
+  if ([kind isEqualToString:@"boolean"]) {
+    NSString *booleanText = trimmed.lowercaseString;
+    if (![booleanText isEqualToString:@"true"] &&
+        ![booleanText isEqualToString:@"false"]) {
+      return NO;
+    }
+    bool booleanValue = [booleanText isEqualToString:@"true"];
+    return storage->set(booleanValue, key);
+  }
+  return NO;
+}
+
+static BOOL MDKRemoveStorageEntry(NSDictionary<NSString *, NSString *> *entry) {
+  if (![entry[@"canMutate"] boolValue]) {
+    return NO;
+  }
+  mmkv::MMKV *storage = MDKDefaultStorage();
+  std::string key = entry[@"key"].UTF8String ?: "";
+  if (storage == nullptr || key.empty() || !storage->containsKey(key)) {
+    return NO;
+  }
+  return storage->removeValueForKey(key);
 }
 
 static NSString *MDKNetworkURL(DoraemonNetFlowHttpModel *model) {
@@ -410,6 +505,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
   UIStackView *_storageResults;
   UIView *_storageDetailView;
   UITextField *_storageSearchField;
+  UITextView *_storageEditor;
   NSString *_selectedStorageKey;
 
   NSArray<DoraemonNetFlowHttpModel *> *_networkAllModels;
@@ -573,8 +669,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_content addArrangedSubview:[self
       infoCardWithTitle:MDKStorageSecurityTitle()
                    value:MDKText(
-                             @"All MMKV entries are shown read-only. Credential-like keys and fields are always redacted.",
-                             @"展示全部 MMKV 条目；自动发现的条目只读，凭据类 key 和字段始终隐藏。")]];
+                             @"Non-sensitive MMKV entries can be edited or deleted. Credential-like keys and fields stay redacted and read-only.",
+                             @"非敏感 MMKV 条目可直接编辑或删除；凭据类 key 和字段仍会隐藏并保持只读。")]];
 
   _storageSearchField = [self searchFieldWithPlaceholder:MDKStorageSearchPlaceholder()];
   _storageSearchField.accessibilityLabel = MDKStorageSearchPlaceholder();
@@ -612,6 +708,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
 - (void)renderStorageResults {
   [self clearStack:_storageResults];
   _storageDetailView = nil;
+  _storageEditor = nil;
   if (_filteredStorageEntries.count == 0) {
     [_storageResults addArrangedSubview:[self
         emptyStateWithTitle:MDKText(@"No entries available", @"暂无可用条目")
@@ -745,11 +842,54 @@ static UIViewController *MDKApplicationTopViewController(void) {
                                             forAxis:UILayoutConstraintAxisHorizontal];
   [header addArrangedSubview:refresh];
   [card addArrangedSubview:header];
-  UILabel *description = [self labelWithText:MDKStorageReadOnlyText()];
+  BOOL canMutate = [entry[@"canMutate"] boolValue];
+  UILabel *description = [self labelWithText:canMutate
+                                                 ? MDKStorageEditableText()
+                                                 : MDKStorageReadOnlyText()];
   description.font = [UIFont systemFontOfSize:12.0];
   description.textColor = MDKSecondaryTextColor();
   [card addArrangedSubview:description];
   [self addStorageValueRowsForEntry:entry toStack:card];
+  if (canMutate) {
+    _storageEditor = [[UITextView alloc] init];
+    _storageEditor.backgroundColor = MDKCardColor();
+    _storageEditor.layer.cornerRadius = 9.0;
+    _storageEditor.layer.borderWidth = 1.0;
+    _storageEditor.layer.borderColor = MDKBorderColor().CGColor;
+    _storageEditor.textColor = MDKTextColor();
+    _storageEditor.tintColor = MDKAccentColor();
+    _storageEditor.font = MDKMonoFont(12.0, UIFontWeightRegular);
+    _storageEditor.textContainerInset = UIEdgeInsetsMake(10.0, 9.0, 10.0, 9.0);
+    _storageEditor.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    _storageEditor.autocorrectionType = UITextAutocorrectionTypeNo;
+    _storageEditor.smartQuotesType = UITextSmartQuotesTypeNo;
+    _storageEditor.smartDashesType = UITextSmartDashesTypeNo;
+    _storageEditor.text = entry[@"value"] ?: @"";
+    _storageEditor.accessibilityLabel = MDKText(@"Stored value editor",
+                                                @"本地值编辑器");
+    if ([entry[@"kind"] isEqualToString:@"number"]) {
+      _storageEditor.keyboardType = UIKeyboardTypeNumbersAndPunctuation;
+    }
+    [_storageEditor.heightAnchor constraintGreaterThanOrEqualToConstant:132.0].active = YES;
+    [card addArrangedSubview:_storageEditor];
+
+    UIStackView *actions = [[UIStackView alloc] init];
+    actions.axis = UILayoutConstraintAxisHorizontal;
+    actions.distribution = UIStackViewDistributionFillEqually;
+    actions.spacing = 8.0;
+    UIButton *save = [self primaryButtonWithTitle:MDKText(@"Save value", @"保存值")];
+    [save addTarget:self
+                  action:@selector(saveStorageEntry)
+        forControlEvents:UIControlEventTouchUpInside];
+    UIButton *remove = [self secondaryButtonWithTitle:MDKText(@"Delete key", @"删除 key")];
+    [remove setTitleColor:MDKDangerColor() forState:UIControlStateNormal];
+    [remove addTarget:self
+                   action:@selector(confirmDeleteStorageEntry)
+         forControlEvents:UIControlEventTouchUpInside];
+    [actions addArrangedSubview:save];
+    [actions addArrangedSubview:remove];
+    [card addArrangedSubview:actions];
+  }
   return card;
 }
 
@@ -825,6 +965,76 @@ static UIViewController *MDKApplicationTopViewController(void) {
     _selectedStorageKey = nil;
   }
   [self filterStorageEntries];
+}
+
+- (NSDictionary<NSString *, NSString *> *)selectedStorageEntry {
+  for (NSDictionary<NSString *, NSString *> *entry in _storageEntries) {
+    if ([entry[@"key"] isEqualToString:_selectedStorageKey]) {
+      return entry;
+    }
+  }
+  return nil;
+}
+
+- (void)saveStorageEntry {
+  NSDictionary<NSString *, NSString *> *entry = [self selectedStorageEntry];
+  if (entry != nil && MDKWriteStorageEntry(entry, _storageEditor.text ?: @"")) {
+    [self.view endEditing:YES];
+    [self refreshStorage];
+    return;
+  }
+  [self showStorageError:MDKText(
+      @"Save failed. Enter a value matching the original type.",
+      @"保存失败，请输入与原类型一致的值。")];
+}
+
+- (void)confirmDeleteStorageEntry {
+  NSDictionary<NSString *, NSString *> *entry = [self selectedStorageEntry];
+  if (entry == nil) {
+    return;
+  }
+  NSString *message = [NSString
+      stringWithFormat:MDKText(
+                           @"This permanently removes %@ from this device. The app may recreate it.",
+                           @"将从当前设备永久删除 %@；应用后续可能重新创建它。"),
+                       entry[@"key"]];
+  UIAlertController *alert = [UIAlertController
+      alertControllerWithTitle:MDKText(@"Delete this local key?",
+                                       @"删除这个本地 key？")
+                    message:message
+             preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:MDKText(@"Cancel", @"取消")
+                                            style:UIAlertActionStyleCancel
+                                          handler:nil]];
+  __weak MDKNativeDiagnosticsContentController *weakSelf = self;
+  [alert addAction:[UIAlertAction
+                       actionWithTitle:MDKText(@"Delete key", @"删除 key")
+                                 style:UIAlertActionStyleDestructive
+                               handler:^(__unused UIAlertAction *action) {
+    MDKNativeDiagnosticsContentController *strongSelf = weakSelf;
+    if (strongSelf == nil) {
+      return;
+    }
+    if (MDKRemoveStorageEntry(entry)) {
+      strongSelf->_selectedStorageKey = nil;
+      [strongSelf.view endEditing:YES];
+      [strongSelf refreshStorage];
+    } else {
+      [strongSelf showStorageError:MDKText(@"Delete failed.", @"删除失败。")];
+    }
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)showStorageError:(NSString *)message {
+  UIAlertController *alert = [UIAlertController
+      alertControllerWithTitle:MDKText(@"Local State", @"本地状态")
+                    message:message
+             preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:MDKText(@"OK", @"确定")
+                                            style:UIAlertActionStyleDefault
+                                          handler:nil]];
+  [self presentViewController:alert animated:YES completion:nil];
 }
 
 #pragma mark - Network

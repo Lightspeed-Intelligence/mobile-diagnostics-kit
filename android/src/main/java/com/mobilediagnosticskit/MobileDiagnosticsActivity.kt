@@ -328,13 +328,93 @@ class MobileDiagnosticsActivity : Activity() {
         })
       })
       addView(TextView(context).apply {
-        text = getString(R.string.mobile_diagnostics_storage_read_only)
+        text = getString(
+          if (entry.canMutate) R.string.mobile_diagnostics_storage_editable
+          else R.string.mobile_diagnostics_storage_read_only,
+        )
         textSize = 12f
         setTextColor(SECONDARY_TEXT)
         setPadding(0, dp(11), 0, dp(4))
       })
       addStorageValueRows(this, entry.value)
+      if (entry.canMutate) addStorageEditor(this, entry)
     }
+
+  private fun addStorageEditor(
+    container: LinearLayout,
+    entry: MobileDiagnosticsStorageEntry,
+  ) {
+    val editor = EditText(this).apply {
+      setText(entry.value)
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      textSize = 12f
+      typeface = Typeface.MONOSPACE
+      gravity = Gravity.TOP or Gravity.START
+      setPadding(dp(11), dp(10), dp(11), dp(10))
+      background = roundedBackground(RAISED, BORDER_MUTED, 9)
+      inputType = when (entry.kind) {
+        "number" -> InputType.TYPE_CLASS_NUMBER or
+          InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+          InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+      }
+      minLines = if (entry.kind == "string") 4 else 1
+      maxLines = 12
+      setHorizontallyScrolling(false)
+      setSelection(text.length)
+    }
+    container.addView(editor, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+      topMargin = dp(10)
+    })
+    container.addView(LinearLayout(this).apply {
+      orientation = LinearLayout.HORIZONTAL
+      addView(actionButton(
+        getString(R.string.mobile_diagnostics_storage_save),
+        primary = true,
+      ) {
+        saveStorageEntry(entry, editor.text.toString())
+      }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(4) })
+      addView(actionButton(
+        getString(R.string.mobile_diagnostics_storage_delete),
+        danger = true,
+      ) {
+        confirmDeleteStorageEntry(entry)
+      }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(4) })
+    }.withTopMargin(8))
+  }
+
+  private fun saveStorageEntry(entry: MobileDiagnosticsStorageEntry, value: String) {
+    if (MobileDiagnosticsStorage.writeDefault(this, entry, value)) {
+      renderDestination(DESTINATION_STORAGE)
+    } else {
+      Toast.makeText(
+        this,
+        getString(R.string.mobile_diagnostics_storage_save_failed),
+        Toast.LENGTH_SHORT,
+      ).show()
+    }
+  }
+
+  private fun confirmDeleteStorageEntry(entry: MobileDiagnosticsStorageEntry) {
+    AlertDialog.Builder(this)
+      .setTitle(R.string.mobile_diagnostics_storage_delete_confirm_title)
+      .setMessage(getString(R.string.mobile_diagnostics_storage_delete_confirm_body, entry.key))
+      .setNegativeButton(R.string.mobile_diagnostics_cancel, null)
+      .setPositiveButton(R.string.mobile_diagnostics_storage_delete) { _, _ ->
+        if (MobileDiagnosticsStorage.removeDefault(this, entry)) {
+          selectedStorageKey = null
+          renderDestination(DESTINATION_STORAGE)
+        } else {
+          Toast.makeText(
+            this,
+            getString(R.string.mobile_diagnostics_unavailable),
+            Toast.LENGTH_SHORT,
+          ).show()
+        }
+      }
+      .show()
+  }
 
   private fun addStorageValueRows(container: LinearLayout, rawValue: String) {
     val parsed = runCatching { JSONTokener(rawValue).nextValue() }.getOrNull()

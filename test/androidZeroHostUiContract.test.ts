@@ -39,6 +39,29 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).not.toContain('android.widget.Button')
   })
 
+  it('edits and deletes non-sensitive MMKV entries without changing their native type', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+    const storage = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsStorage.kt'
+    )
+    const nativeStorage = source(
+      'android/src/main/cpp/MobileDiagnosticsStorage.cpp'
+    )
+
+    expect(activity).toContain('saveStorageEntry(')
+    expect(activity).toContain('confirmDeleteStorageEntry(')
+    expect(storage).toContain('entry.kind')
+    expect(storage).toContain('!containsSensitiveField(parsed)')
+    expect(storage).toContain('writeDefaultNative(')
+    expect(storage).toContain('removeDefaultNative(')
+    expect(nativeStorage).toContain('storage->set(number_value, key)')
+    expect(nativeStorage).toContain('storage->set(boolean_value, key)')
+    expect(nativeStorage).toContain('storage->set(value, key)')
+    expect(nativeStorage).toContain('storage->removeValueForKey(key)')
+  })
+
   it('restores the established network toolbar, filters, and request detail', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
@@ -85,6 +108,8 @@ describe('Android zero-host diagnostics UI contract', () => {
       'mobile_diagnostics_filter_errors',
       'mobile_diagnostics_copy_curl',
       'mobile_diagnostics_storage_search',
+      'mobile_diagnostics_storage_save',
+      'mobile_diagnostics_storage_delete',
       'mobile_diagnostics_ota_description',
     ]
 

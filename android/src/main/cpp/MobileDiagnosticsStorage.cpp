@@ -2,6 +2,7 @@
 
 #include <MMKV/MMKV.h>
 
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -9,10 +10,33 @@
 
 namespace {
 
-std::string readValue(MMKV *storage, const std::string &key) {
+struct StoredValue {
+  std::string kind;
+  std::string value;
+};
+
+std::string fromJavaString(JNIEnv *environment, jstring value) {
+  if (value == nullptr) {
+    return "";
+  }
+  const char *characters = environment->GetStringUTFChars(value, nullptr);
+  std::string result(characters == nullptr ? "" : characters);
+  if (characters != nullptr) {
+    environment->ReleaseStringUTFChars(value, characters);
+  }
+  return result;
+}
+
+MMKV *defaultStorage(const std::string &root) {
+  MMKV::initializeMMKV(root, MMKVLogWarning);
+  return MMKV::mmkvWithID(DEFAULT_MMAP_ID, mmkv::DEFAULT_MMAP_SIZE,
+                          MMKV_SINGLE_PROCESS, nullptr, &root);
+}
+
+StoredValue readValue(MMKV *storage, const std::string &key) {
   std::string stringValue;
   if (storage->getString(key, stringValue)) {
-    return stringValue;
+    return {"string", stringValue};
   }
 
   bool hasNumber = false;
@@ -20,16 +44,16 @@ std::string readValue(MMKV *storage, const std::string &key) {
   if (hasNumber) {
     std::ostringstream stream;
     stream << std::setprecision(15) << numberValue;
-    return stream.str();
+    return {"number", stream.str()};
   }
 
   bool hasBoolean = false;
   bool booleanValue = storage->getBool(key, false, &hasBoolean);
   if (hasBoolean) {
-    return booleanValue ? "true" : "false";
+    return {"boolean", booleanValue ? "true" : "false"};
   }
 
-  return "<binary or unreadable>";
+  return {"binary", "<binary or unreadable>"};
 }
 
 }  // namespace
@@ -37,21 +61,15 @@ std::string readValue(MMKV *storage, const std::string &key) {
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_com_mobilediagnosticskit_MobileDiagnosticsStorage_readDefaultNative(
     JNIEnv *environment, jclass, jstring root_path) {
-  const char *root_chars = environment->GetStringUTFChars(root_path, nullptr);
-  std::string root(root_chars == nullptr ? "" : root_chars);
-  if (root_chars != nullptr) {
-    environment->ReleaseStringUTFChars(root_path, root_chars);
-  }
-
-  MMKV::initializeMMKV(root, MMKVLogWarning);
-  MMKV *storage = MMKV::mmkvWithID(
-      DEFAULT_MMAP_ID, mmkv::DEFAULT_MMAP_SIZE, MMKV_SINGLE_PROCESS, nullptr,
-      &root);
+  std::string root = fromJavaString(environment, root_path);
+  MMKV *storage = defaultStorage(root);
   std::vector<std::string> flattened;
   if (storage != nullptr) {
     for (const auto &key : storage->allKeys()) {
+      StoredValue stored = readValue(storage, key);
       flattened.push_back(key);
-      flattened.push_back(readValue(storage, key));
+      flattened.push_back(stored.kind);
+      flattened.push_back(stored.value);
     }
   }
 
@@ -64,4 +82,53 @@ Java_com_mobilediagnosticskit_MobileDiagnosticsStorage_readDefaultNative(
     environment->DeleteLocalRef(value);
   }
   return result;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mobilediagnosticskit_MobileDiagnosticsStorage_writeDefaultNative(
+    JNIEnv *environment, jclass, jstring root_path, jstring storage_key,
+    jstring storage_kind, jstring storage_value) {
+  std::string root = fromJavaString(environment, root_path);
+  std::string key = fromJavaString(environment, storage_key);
+  std::string kind = fromJavaString(environment, storage_kind);
+  std::string value = fromJavaString(environment, storage_value);
+  MMKV *storage = defaultStorage(root);
+  if (storage == nullptr || key.empty()) {
+    return JNI_FALSE;
+  }
+  if (kind == "string") {
+    return storage->set(value, key) ? JNI_TRUE : JNI_FALSE;
+  }
+  if (kind == "number") {
+    try {
+      size_t parsed = 0;
+      double number_value = std::stod(value, &parsed);
+      if (parsed != value.size() || !std::isfinite(number_value)) {
+        return JNI_FALSE;
+      }
+      return storage->set(number_value, key) ? JNI_TRUE : JNI_FALSE;
+    } catch (...) {
+      return JNI_FALSE;
+    }
+  }
+  if (kind == "boolean") {
+    if (value != "true" && value != "false") {
+      return JNI_FALSE;
+    }
+    bool boolean_value = value == "true";
+    return storage->set(boolean_value, key) ? JNI_TRUE : JNI_FALSE;
+  }
+  return JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mobilediagnosticskit_MobileDiagnosticsStorage_removeDefaultNative(
+    JNIEnv *environment, jclass, jstring root_path, jstring storage_key) {
+  std::string root = fromJavaString(environment, root_path);
+  std::string key = fromJavaString(environment, storage_key);
+  MMKV *storage = defaultStorage(root);
+  if (storage == nullptr || key.empty() || !storage->containsKey(key)) {
+    return JNI_FALSE;
+  }
+  return storage->removeValueForKey(key) ? JNI_TRUE : JNI_FALSE;
 }
