@@ -242,6 +242,17 @@ describe('iOS DoKit wrapper', () => {
     ).toBeGreaterThanOrEqual(2)
   })
 
+  it('renders captured image response data as a bounded native preview', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(source).toContain('CGImageSourceCreateThumbnailAtIndex')
+    expect(source).toContain('kCGImageSourceThumbnailMaxPixelSize')
+    expect(source).toContain('model.responseData')
+    expect(source).toContain('addImageBodySection:')
+    expect(source).toContain('UIImageView *preview')
+    expect(source).toContain('MDKMaxImagePreviewBytes')
+  })
+
   it('keeps request-detail navigation fixed outside the scrolling content', () => {
     const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
 

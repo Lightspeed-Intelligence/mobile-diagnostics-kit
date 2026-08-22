@@ -7,11 +7,15 @@
 #import <DoraemonKit/DoraemonNetFlowDataSource.h>
 #import <DoraemonKit/DoraemonNetFlowHttpModel.h>
 #import <DoraemonKit/DoraemonNetFlowManager.h>
+#import <ImageIO/ImageIO.h>
 #import <MMKVCore/MMKV.h>
 #import <objc/message.h>
 #import <UIKit/UIKit.h>
 
 #include <cmath>
+
+static const NSUInteger MDKMaxImagePreviewBytes = 12 * 1024 * 1024;
+static const CGFloat MDKMaxImagePreviewDimension = 2048.0;
 
 static UIColor *MDKColor(NSUInteger hex) {
   return [UIColor colorWithRed:((hex >> 16) & 0xff) / 255.0
@@ -418,6 +422,35 @@ static BOOL MDKNetworkIsTextMIMEType(NSString *mimeType) {
          [normalized containsString:@"xml"] ||
          [normalized containsString:@"javascript"] ||
          [normalized containsString:@"form-urlencoded"];
+}
+
+static UIImage *MDKImagePreviewFromData(NSData *data) {
+  if (data.length == 0 || data.length > MDKMaxImagePreviewBytes) {
+    return nil;
+  }
+  CGImageSourceRef source = CGImageSourceCreateWithData(
+      (__bridge CFDataRef)data, NULL);
+  if (source == NULL) {
+    return nil;
+  }
+  NSDictionary *options = @{
+    (__bridge NSString *)kCGImageSourceCreateThumbnailFromImageAlways : @YES,
+    (__bridge NSString *)kCGImageSourceCreateThumbnailWithTransform : @YES,
+    (__bridge NSString *)kCGImageSourceShouldCacheImmediately : @YES,
+    (__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize :
+        @(MDKMaxImagePreviewDimension),
+  };
+  CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(
+      source, 0, (__bridge CFDictionaryRef)options);
+  CFRelease(source);
+  if (thumbnail == NULL) {
+    return nil;
+  }
+  UIImage *image = [UIImage imageWithCGImage:thumbnail
+                                       scale:UIScreen.mainScreen.scale
+                                 orientation:UIImageOrientationUp];
+  CGImageRelease(thumbnail);
+  return image;
 }
 
 static BOOL MDKNetworkIsError(DoraemonNetFlowHttpModel *model) {
@@ -1556,12 +1589,70 @@ static UIViewController *MDKApplicationTopViewController(void) {
        initiallyExpanded:YES];
   [self addHeadersSection:MDKText(@"Response headers", @"响应头")
                   headers:MDKNetworkResponseHeaders(model)];
+  if ([MDKNetworkResourceType(model) isEqualToString:@"image"]) {
+    [self addImageBodySection:MDKText(@"Response body", @"响应体")
+                         data:model.responseData
+                    byteCount:model.downFlow.doubleValue];
+    return;
+  }
   BOOL binary = model.responseBody.length == 0 && model.responseData.length > 0 &&
                 !MDKNetworkIsTextMIMEType(model.mineType);
   [self addBodySection:MDKText(@"Response body", @"响应体")
                    body:model.responseBody ?: @""
                  binary:binary
               byteCount:model.downFlow.doubleValue];
+}
+
+- (void)addImageBodySection:(NSString *)title
+                       data:(NSData *)data
+                  byteCount:(double)byteCount {
+  UIStackView *content = [[UIStackView alloc] init];
+  content.axis = UILayoutConstraintAxisVertical;
+  content.spacing = 8.0;
+  content.layoutMargins = UIEdgeInsetsMake(10.0, 10.0, 10.0, 10.0);
+  content.layoutMarginsRelativeArrangement = YES;
+
+  UIImage *image = MDKImagePreviewFromData(data);
+  UILabel *status = [self labelWithText:@""];
+  status.font = MDKMonoFont(11.0, UIFontWeightRegular);
+  status.textColor = MDKMutedTextColor();
+  status.textAlignment = NSTextAlignmentCenter;
+  status.numberOfLines = 0;
+  if (image != nil) {
+    UIImageView *preview = [[UIImageView alloc] initWithImage:image];
+    preview.contentMode = UIViewContentModeScaleAspectFit;
+    preview.clipsToBounds = YES;
+    preview.backgroundColor = MDKCardColor();
+    preview.layer.cornerRadius = 6.0;
+    preview.isAccessibilityElement = YES;
+    preview.accessibilityLabel = MDKText(@"Image response preview", @"图片响应预览");
+    CGFloat availableWidth = MAX(UIScreen.mainScreen.bounds.size.width - 40.0, 240.0);
+    CGFloat aspectHeight = image.size.width > 0.0
+                               ? availableWidth * image.size.height / image.size.width
+                               : 240.0;
+    [preview.heightAnchor
+        constraintEqualToConstant:MIN(MAX(aspectHeight, 120.0), 360.0)]
+        .active = YES;
+    [content addArrangedSubview:preview];
+    status.text = [NSString
+        stringWithFormat:MDKText(@"Captured response · %.0f × %.0f · %@",
+                                 @"已捕获响应 · %.0f × %.0f · %@"),
+                         image.size.width, image.size.height,
+                         MDKFormatBytes(byteCount > 0.0 ? byteCount : data.length)];
+  } else if (data.length > MDKMaxImagePreviewBytes) {
+    status.text = [NSString
+        stringWithFormat:MDKText(@"Image preview skipped · %@ exceeds the on-device limit",
+                                 @"已跳过图片预览 · %@ 超出本机预览上限"),
+                         MDKFormatBytes(data.length)];
+  } else {
+    status.text = MDKText(
+        @"Image preview unavailable. The captured body is empty or uses an unsupported format.",
+        @"无法预览图片；捕获到的正文为空，或图片格式暂不支持。");
+  }
+  [content addArrangedSubview:status];
+  [_content addArrangedSubview:[self collapsibleSectionWithTitle:title
+                                              initiallyExpanded:YES
+                                                         content:content]];
 }
 
 - (void)addDetailSection:(NSString *)title

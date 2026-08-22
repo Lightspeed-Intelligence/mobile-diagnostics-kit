@@ -81,6 +81,21 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).toContain('collapsibleSection(')
   })
 
+  it('previews image responses without decoding an unbounded payload', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+
+    expect(activity).toContain('ImageView')
+    expect(activity).toContain('imageResponseContent(')
+    expect(activity).toContain('loadNetworkImagePreview(')
+    expect(activity).toContain('withContext(Dispatchers.IO)')
+    expect(activity).toContain('HttpURLConnection')
+    expect(activity).toContain('BitmapFactory.Options().apply')
+    expect(activity).toContain('MAX_IMAGE_PREVIEW_BYTES')
+    expect(activity).toContain('request?.method.orEmpty().uppercase(Locale.ROOT) != "GET"')
+  })
+
   it('keeps current-build information and the established OTA action card', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
@@ -107,6 +122,8 @@ describe('Android zero-host diagnostics UI contract', () => {
       'mobile_diagnostics_network_search',
       'mobile_diagnostics_filter_errors',
       'mobile_diagnostics_copy_curl',
+      'mobile_diagnostics_image_preview_loading',
+      'mobile_diagnostics_image_preview_unavailable',
       'mobile_diagnostics_storage_search',
       'mobile_diagnostics_storage_save',
       'mobile_diagnostics_storage_delete',

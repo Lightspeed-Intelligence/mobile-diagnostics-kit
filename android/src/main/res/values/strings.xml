@@ -89,6 +89,10 @@
   <string name="mobile_diagnostics_no_body">No body</string>
   <string name="mobile_diagnostics_binary_body">Binary response body · %1$s · text preview unavailable</string>
   <string name="mobile_diagnostics_body_truncated">Preview truncated for on-device display</string>
+  <string name="mobile_diagnostics_image_preview">Image response preview</string>
+  <string name="mobile_diagnostics_image_preview_loading">Loading image preview from the original request…</string>
+  <string name="mobile_diagnostics_image_preview_loaded">Loaded from the original URL · %1$d × %2$d · %3$s</string>
+  <string name="mobile_diagnostics_image_preview_unavailable">Image preview unavailable. Android DoKit did not retain the image body and the original URL could not be loaded.</string>
   <string name="mobile_diagnostics_ota_title">Check for an Expo update</string>
   <string name="mobile_diagnostics_ota_description">Uses the installed runtime and channel. It does not accept arbitrary update URLs or expose manifest details.</string>
   <string name="mobile_diagnostics_ota_ready">Ready to check the current runtime and channel</string>

@@ -7,6 +7,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -26,6 +28,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
@@ -35,6 +38,9 @@ import com.didichuxing.doraemonkit.kit.network.NetworkManager
 import com.didichuxing.doraemonkit.kit.network.bean.NetworkRecord
 import expo.modules.updates.IUpdatesController
 import expo.modules.updates.UpdatesController
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,6 +50,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -946,13 +953,138 @@ class MobileDiagnosticsActivity : Activity() {
     container.addView(collapsibleSection(
       getString(R.string.mobile_diagnostics_response_body),
       initiallyExpanded = true,
-      content = bodyContent(
-        record.mResponseBody.orEmpty(),
-        binary = record.mResponseBody.isNullOrEmpty() && record.responseLength.toLong() > 0L,
-        byteCount = record.responseLength.toLong(),
-      ),
+      content = if (networkResourceType(record) == FILTER_IMAGE) {
+        imageResponseContent(record)
+      } else {
+        bodyContent(
+          record.mResponseBody.orEmpty(),
+          binary = record.mResponseBody.isNullOrEmpty() && record.responseLength.toLong() > 0L,
+          byteCount = record.responseLength.toLong(),
+        )
+      },
     ).withTopMargin(10))
   }
+
+  private fun imageResponseContent(record: NetworkRecord): View {
+    val preview = ImageView(this).apply {
+      visibility = View.GONE
+      adjustViewBounds = true
+      maxHeight = dp(360)
+      scaleType = ImageView.ScaleType.FIT_CENTER
+      background = roundedBackground(RAISED, RAISED, 6)
+      contentDescription = getString(R.string.mobile_diagnostics_image_preview)
+    }
+    val status = TextView(this).apply {
+      text = getString(R.string.mobile_diagnostics_image_preview_loading)
+      textSize = 11f
+      setTextColor(MUTED_TEXT)
+      gravity = Gravity.CENTER
+      setPadding(dp(12), dp(12), dp(12), dp(12))
+    }
+    val content = LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      setPadding(dp(10), dp(10), dp(10), dp(10))
+      addView(preview, LinearLayout.LayoutParams(MATCH, WRAP))
+      addView(status, LinearLayout.LayoutParams(MATCH, WRAP))
+    }
+    val request = record.mRequest
+    val scheme = runCatching { Uri.parse(request?.url.orEmpty()).scheme }
+      .getOrNull()?.lowercase(Locale.ROOT)
+    if (
+      request?.method.orEmpty().uppercase(Locale.ROOT) != "GET" ||
+      (scheme != "http" && scheme != "https")
+    ) {
+      status.text = getString(R.string.mobile_diagnostics_image_preview_unavailable)
+      return content
+    }
+
+    scope.launch {
+      loadNetworkImagePreview(record).onSuccess { loaded ->
+        if (selectedNetworkRecord !== record) return@onSuccess
+        preview.setImageBitmap(loaded.bitmap)
+        preview.visibility = View.VISIBLE
+        status.text = getString(
+          R.string.mobile_diagnostics_image_preview_loaded,
+          loaded.bitmap.width,
+          loaded.bitmap.height,
+          formatBytes(loaded.byteCount.toLong()),
+        )
+      }.onFailure {
+        if (selectedNetworkRecord === record) {
+          status.text = getString(R.string.mobile_diagnostics_image_preview_unavailable)
+        }
+      }
+    }
+    return content
+  }
+
+  private suspend fun loadNetworkImagePreview(
+    record: NetworkRecord,
+  ): Result<NetworkImagePreview> = withContext(Dispatchers.IO) {
+    runCatching {
+      val request = requireNotNull(record.mRequest)
+      val connection = URL(request.url).openConnection() as HttpURLConnection
+      val bytes = try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = IMAGE_PREVIEW_TIMEOUT_MS
+        connection.readTimeout = IMAGE_PREVIEW_TIMEOUT_MS
+        connection.instanceFollowRedirects = true
+        connection.useCaches = true
+        headerPairs(request.headers).forEach { (name, value) ->
+          if (isForwardableImageHeader(name)) {
+            connection.setRequestProperty(name, value)
+          }
+        }
+        val status = connection.responseCode
+        check(status in 200..299)
+        val expectedLength = connection.contentLengthLong
+        check(expectedLength <= 0L || expectedLength <= MAX_IMAGE_PREVIEW_BYTES)
+        connection.inputStream.use { input ->
+          ByteArrayOutputStream(
+            expectedLength.takeIf { it in 1..MAX_IMAGE_PREVIEW_BYTES }
+              ?.toInt() ?: DEFAULT_BUFFER_SIZE,
+          ).use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0
+            while (true) {
+              val count = input.read(buffer)
+              if (count < 0) break
+              total += count
+              check(total <= MAX_IMAGE_PREVIEW_BYTES)
+              output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+          }
+        }
+      } finally {
+        connection.disconnect()
+      }
+      NetworkImagePreview(decodeImagePreview(bytes), bytes.size)
+    }
+  }
+
+  private fun decodeImagePreview(bytes: ByteArray): Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    check(bounds.outWidth > 0 && bounds.outHeight > 0)
+    var sampleSize = 1
+    while (
+      bounds.outWidth / sampleSize > MAX_IMAGE_PREVIEW_DIMENSION ||
+      bounds.outHeight / sampleSize > MAX_IMAGE_PREVIEW_DIMENSION ||
+      bounds.outWidth.toLong() * bounds.outHeight / (sampleSize.toLong() * sampleSize) >
+        MAX_IMAGE_PREVIEW_PIXELS
+    ) {
+      sampleSize *= 2
+    }
+    val options = BitmapFactory.Options().apply {
+      inSampleSize = sampleSize
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options))
+  }
+
+  private fun isForwardableImageHeader(name: String): Boolean =
+    name.lowercase(Locale.ROOT) !in IMAGE_PREVIEW_SKIPPED_HEADERS
 
   private fun collapsibleSection(
     title: String,
@@ -1523,6 +1655,11 @@ class MobileDiagnosticsActivity : Activity() {
 
   private data class ScrollColumn(val view: ScrollView, val column: LinearLayout)
 
+  private data class NetworkImagePreview(
+    val bitmap: Bitmap,
+    val byteCount: Int,
+  )
+
   companion object {
     const val DESTINATION_NETWORK = "network"
     const val DESTINATION_STORAGE = "storage"
@@ -1538,7 +1675,19 @@ class MobileDiagnosticsActivity : Activity() {
     private const val FILTER_ERRORS = "errors"
     private const val NETWORK_REFRESH_INTERVAL_MS = 1_000L
     private const val MAX_BODY_CHARACTERS = 120_000
+    private const val MAX_IMAGE_PREVIEW_BYTES = 12 * 1024 * 1024
+    private const val MAX_IMAGE_PREVIEW_DIMENSION = 2_048
+    private const val MAX_IMAGE_PREVIEW_PIXELS = 4_000_000L
+    private const val IMAGE_PREVIEW_TIMEOUT_MS = 10_000
     private val FETCH_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
+    private val IMAGE_PREVIEW_SKIPPED_HEADERS = setOf(
+      "accept-encoding",
+      "connection",
+      "content-length",
+      "host",
+      "range",
+      "transfer-encoding",
+    )
     private val IMAGE_EXTENSION = Regex("\\.(?:png|jpe?g|gif|webp|svg|avif|heic)$", RegexOption.IGNORE_CASE)
     private val MEDIA_EXTENSION = Regex("\\.(?:mp4|mov|m4v|webm|mp3|m4a|wav|aac|ogg)$", RegexOption.IGNORE_CASE)
     private val SURFACE = Color.rgb(17, 24, 39)
