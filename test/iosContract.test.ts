@@ -226,6 +226,17 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('clientExtra["sourceBranch"] as? String')
   })
 
+  it('refreshes the current-bundle card after an OTA relaunch', () => {
+    const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+    const relaunchPath = source.slice(
+      source.indexOf('} else if ([result isEqualToString:@"relaunching"])'),
+      source.indexOf('#pragma mark - Shared UI')
+    )
+
+    expect(relaunchPath).toContain('[self renderDestination]')
+    expect(relaunchPath).toContain('Already up to date')
+  })
+
   it('edits and deletes non-sensitive MMKV entries while preserving native types', () => {
     const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
 

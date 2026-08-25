@@ -160,6 +160,13 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(successPath.indexOf('mobile_diagnostics_relaunching')).toBeLessThan(
       successPath.indexOf('controller.relaunchReactApplicationForModule()')
     )
+    expect(successPath).toContain('renderDestination(DESTINATION_OTA)')
+    expect(
+      successPath.indexOf('controller.relaunchReactApplicationForModule()')
+    ).toBeLessThan(successPath.indexOf('renderDestination(DESTINATION_OTA)'))
+    expect(successPath).toContain(
+      'setStatus(it, getString(R.string.mobile_diagnostics_up_to_date))'
+    )
   })
 
   it('localizes OTA and network detail labels on Android', () => {

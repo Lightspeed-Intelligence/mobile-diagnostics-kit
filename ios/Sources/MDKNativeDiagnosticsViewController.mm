@@ -2026,7 +2026,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
     } else if ([result isEqualToString:@"unavailable"]) {
       message = MDKText(@"Unavailable in this build", @"当前构建不可用");
     } else if ([result isEqualToString:@"relaunching"]) {
-      message = MDKText(@"Relaunching…", @"正在重新加载…");
+      [self renderDestination];
+      message = MDKText(@"Already up to date", @"已是最新版本");
     }
     self->_otaStatus.text = message;
     self->_otaStatus.accessibilityLabel = message;

@@ -71,6 +71,7 @@ class MobileDiagnosticsActivity : Activity() {
   private var networkShowing: TextView? = null
   private var networkRecordsContainer: LinearLayout? = null
   private val networkFilterButtons = linkedMapOf<String, TextView>()
+  private var otaStatus: TextView? = null
 
   private val networkRefreshRunnable = object : Runnable {
     override fun run() {
@@ -150,6 +151,7 @@ class MobileDiagnosticsActivity : Activity() {
     selectedNetworkRecord = null
     clearNetworkBindings()
     mainHandler.removeCallbacks(networkRefreshRunnable)
+    otaStatus = null
     body.removeAllViews()
     body.addView(header(destinationTitle(destination)))
     when (destination) {
@@ -1256,6 +1258,7 @@ class MobileDiagnosticsActivity : Activity() {
       gravity = Gravity.CENTER
       setPadding(dp(8), dp(11), dp(8), 0)
     }
+    otaStatus = status
     scroll.column.addView(cardContainer(radius = 14).apply {
       setPadding(dp(17), dp(17), dp(17), dp(17))
       addView(TextView(context).apply {
@@ -1316,6 +1319,10 @@ class MobileDiagnosticsActivity : Activity() {
             is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> {
               setStatus(status, getString(R.string.mobile_diagnostics_relaunching))
               controller.relaunchReactApplicationForModule()
+              renderDestination(DESTINATION_OTA)
+              otaStatus?.let {
+                setStatus(it, getString(R.string.mobile_diagnostics_up_to_date))
+              }
             }
             is IUpdatesController.FetchUpdateResult.ErrorResult,
             is IUpdatesController.FetchUpdateResult.Failure ->
