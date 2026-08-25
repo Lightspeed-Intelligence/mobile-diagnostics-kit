@@ -145,6 +145,23 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).toContain('mobile_diagnostics_network_privacy_title')
   })
 
+  it('shows the relaunch state after an update finishes downloading', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+    const successPath = activity.slice(
+      activity.indexOf('is IUpdatesController.FetchUpdateResult.Success'),
+      activity.indexOf('is IUpdatesController.FetchUpdateResult.ErrorResult')
+    )
+
+    expect(successPath).toContain(
+      'setStatus(status, getString(R.string.mobile_diagnostics_relaunching))'
+    )
+    expect(successPath.indexOf('mobile_diagnostics_relaunching')).toBeLessThan(
+      successPath.indexOf('controller.relaunchReactApplicationForModule()')
+    )
+  })
+
   it('localizes OTA and network detail labels on Android', () => {
     const english = source('android/src/main/res/values/strings.xml')
     const chinese = source('android/src/main/res/values-zh-rCN/strings.xml')
@@ -166,6 +183,7 @@ describe('Android zero-host diagnostics UI contract', () => {
       'mobile_diagnostics_storage_save',
       'mobile_diagnostics_storage_delete',
       'mobile_diagnostics_ota_description',
+      'mobile_diagnostics_relaunching',
     ]
 
     for (const name of requiredNames) {

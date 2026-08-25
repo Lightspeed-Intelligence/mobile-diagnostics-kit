@@ -1313,8 +1313,10 @@ class MobileDiagnosticsActivity : Activity() {
           setStatus(status, getString(R.string.mobile_diagnostics_downloading))
           when (controller.fetchUpdate()) {
             is IUpdatesController.FetchUpdateResult.Success,
-            is IUpdatesController.FetchUpdateResult.RollBackToEmbedded ->
+            is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> {
+              setStatus(status, getString(R.string.mobile_diagnostics_relaunching))
               controller.relaunchReactApplicationForModule()
+            }
             is IUpdatesController.FetchUpdateResult.ErrorResult,
             is IUpdatesController.FetchUpdateResult.Failure ->
               error(getString(R.string.mobile_diagnostics_download_failed))
