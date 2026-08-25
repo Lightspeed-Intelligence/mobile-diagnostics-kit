@@ -170,6 +170,25 @@ describe('Android zero-host diagnostics UI contract', () => {
     )
   })
 
+  it('retries a failed OTA download once before reporting the final error', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+    const helperStart = activity.indexOf('private suspend fun fetchUpdateWithRetry(')
+    const helperEnd = activity.indexOf('private fun runtimeInfoRow(', helperStart)
+    const helper = activity.slice(helperStart, helperEnd)
+
+    expect(helperStart).toBeGreaterThanOrEqual(0)
+    expect(helper).toContain('OTA_FETCH_RETRY_DELAY_MS')
+    expect(helper).toContain('delay(OTA_FETCH_RETRY_DELAY_MS)')
+    expect(helper.match(/controller\.fetchUpdate\(\)/g)).toHaveLength(2)
+    expect(helper).not.toContain('while (')
+    expect(helper).not.toContain('repeat(')
+    expect(activity).toContain(
+      'error(getString(R.string.mobile_diagnostics_download_failed))'
+    )
+  })
+
   it('localizes OTA and network detail labels on Android', () => {
     const english = source('android/src/main/res/values/strings.xml')
     const chinese = source('android/src/main/res/values-zh-rCN/strings.xml')

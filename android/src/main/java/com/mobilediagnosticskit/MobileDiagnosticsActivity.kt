@@ -46,6 +46,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -1306,7 +1307,7 @@ class MobileDiagnosticsActivity : Activity() {
         is IUpdatesController.CheckForUpdateResult.UpdateAvailable,
         is IUpdatesController.CheckForUpdateResult.RollBackToEmbedded -> {
           setStatus(status, getString(R.string.mobile_diagnostics_downloading))
-          when (controller.fetchUpdate()) {
+          when (fetchUpdateWithRetry(controller)) {
             is IUpdatesController.FetchUpdateResult.Success,
             is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> {
               setStatus(status, getString(R.string.mobile_diagnostics_relaunching))
@@ -1333,6 +1334,20 @@ class MobileDiagnosticsActivity : Activity() {
     }
     button.isEnabled = true
     button.alpha = 1f
+  }
+
+  private suspend fun fetchUpdateWithRetry(
+    controller: IUpdatesController,
+  ): IUpdatesController.FetchUpdateResult {
+    return when (val result = controller.fetchUpdate()) {
+      is IUpdatesController.FetchUpdateResult.Success,
+      is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> result
+      is IUpdatesController.FetchUpdateResult.ErrorResult,
+      is IUpdatesController.FetchUpdateResult.Failure -> {
+        delay(OTA_FETCH_RETRY_DELAY_MS)
+        controller.fetchUpdate()
+      }
+    }
   }
 
   private fun runtimeInfoRow(label: Int, value: String): View =
@@ -1621,6 +1636,7 @@ class MobileDiagnosticsActivity : Activity() {
     private const val FILTER_OTHER = "other"
     private const val FILTER_ERRORS = "errors"
     private const val NETWORK_REFRESH_INTERVAL_MS = 1_000L
+    private const val OTA_FETCH_RETRY_DELAY_MS = 1_500L
     private const val MAX_BODY_CHARACTERS = 120_000
     private const val MAX_IMAGE_PREVIEW_DIMENSION = 2_048
     private const val MAX_IMAGE_PREVIEW_PIXELS = 4_000_000L
