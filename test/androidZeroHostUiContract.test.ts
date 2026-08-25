@@ -8,18 +8,16 @@ function source(relativePath: string): string {
 }
 
 describe('Android zero-host diagnostics UI contract', () => {
-  it('hides the launcher while a React Native modal owns the screen', () => {
+  it('keeps the launcher attached behind a React Native modal', () => {
     const launcher = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsLauncherOverlay.kt'
     )
 
-    expect(launcher).toContain('ReactModalHostView')
-    expect(launcher).toContain('getDialog')
-    expect(launcher).toContain('OnGlobalLayoutListener')
     expect(launcher).toContain('dk_main_launch_icon')
-    expect(launcher).toContain('if (hasVisibleReactModal(')
+    expect(launcher).toContain('val target = root as? ViewGroup ?: return')
     expect(launcher).toContain('detachLauncher()')
-    expect(launcher).not.toContain('dialog.window?.decorView')
+    expect(launcher).not.toContain('ReactModalHostView')
+    expect(launcher).not.toContain('hasVisibleReactModal')
     expect(launcher).not.toContain('text = "D"')
   })
 

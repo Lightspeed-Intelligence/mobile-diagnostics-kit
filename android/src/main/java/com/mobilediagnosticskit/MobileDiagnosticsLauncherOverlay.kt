@@ -1,7 +1,6 @@
 package com.mobilediagnosticskit
 
 import android.app.Activity
-import android.app.Dialog
 import android.os.Build
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -9,19 +8,14 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import java.lang.ref.WeakReference
 import kotlin.math.abs
 import kotlin.math.max
 
 internal object MobileDiagnosticsLauncherOverlay {
-  private const val REACT_MODAL_HOST_VIEW =
-    "com.facebook.react.views.modal.ReactModalHostView"
   private var activityRef = WeakReference<Activity>(null)
-  private var observedRootRef = WeakReference<View>(null)
   private var launcher: View? = null
-  private var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
   private var lastX: Float? = null
   private var lastY: Float? = null
 
@@ -29,7 +23,6 @@ internal object MobileDiagnosticsLauncherOverlay {
     if (activityRef.get() !== activity) {
       hide()
       activityRef = WeakReference(activity)
-      observeModalChanges(activity)
     }
     scheduleRefresh(activity)
   }
@@ -38,24 +31,8 @@ internal object MobileDiagnosticsLauncherOverlay {
     val owner = activityRef.get()
     if (activity != null && owner !== activity) return
 
-    layoutListener?.let { listener ->
-      observedRootRef.get()?.viewTreeObserver?.takeIf { it.isAlive }
-        ?.removeOnGlobalLayoutListener(listener)
-    }
     detachLauncher()
     activityRef = WeakReference(null)
-    observedRootRef = WeakReference(null)
-    layoutListener = null
-  }
-
-  private fun observeModalChanges(activity: Activity) {
-    val root = activity.window.decorView
-    val listener = ViewTreeObserver.OnGlobalLayoutListener {
-      root.post { refreshLauncher(activity) }
-    }
-    root.viewTreeObserver.addOnGlobalLayoutListener(listener)
-    observedRootRef = WeakReference(root)
-    layoutListener = listener
   }
 
   private fun scheduleRefresh(activity: Activity) {
@@ -70,10 +47,6 @@ internal object MobileDiagnosticsLauncherOverlay {
     ) return
 
     val root = activity.window.decorView
-    if (hasVisibleReactModal(root)) {
-      detachLauncher()
-      return
-    }
     val target = root as? ViewGroup ?: return
     if (launcher?.parent === target && launcher?.isAttachedToWindow == true) return
 
@@ -99,31 +72,6 @@ internal object MobileDiagnosticsLauncherOverlay {
     )
     launcher = button
     positionLauncher(button, target, size)
-  }
-
-  private fun hasVisibleReactModal(root: View): Boolean {
-    var visible = false
-
-    fun visit(view: View) {
-      if (visible) return
-      if (view.javaClass.name == REACT_MODAL_HOST_VIEW) {
-        val dialog = runCatching {
-          view.javaClass.methods
-            .firstOrNull { it.name == "getDialog" && it.parameterCount == 0 }
-            ?.invoke(view) as? Dialog
-        }.getOrNull()
-        if (dialog?.isShowing == true) {
-          visible = true
-          return
-        }
-      }
-      if (view is ViewGroup) {
-        for (index in 0 until view.childCount) visit(view.getChildAt(index))
-      }
-    }
-
-    visit(root)
-    return visible
   }
 
   private fun positionLauncher(view: View, parent: ViewGroup, size: Int) {
