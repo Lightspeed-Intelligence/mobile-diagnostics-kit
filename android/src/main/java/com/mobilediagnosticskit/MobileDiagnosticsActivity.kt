@@ -1262,18 +1262,10 @@ class MobileDiagnosticsActivity : Activity() {
     scroll.column.addView(cardContainer(radius = 14).apply {
       setPadding(dp(17), dp(17), dp(17), dp(17))
       addView(TextView(context).apply {
-        text = "↻"
-        textSize = 27f
-        gravity = Gravity.CENTER
-        setTextColor(ACCENT)
-        background = roundedBackground(ACCENT_SURFACE, ACCENT_SURFACE, 22)
-      }, LinearLayout.LayoutParams(dp(44), dp(44)))
-      addView(TextView(context).apply {
         text = getString(R.string.mobile_diagnostics_ota_title)
         textSize = 19f
         setTextColor(PRIMARY_TEXT)
         setTypeface(typeface, Typeface.BOLD)
-        setPadding(0, dp(14), 0, 0)
       })
       addView(TextView(context).apply {
         text = getString(R.string.mobile_diagnostics_ota_description)

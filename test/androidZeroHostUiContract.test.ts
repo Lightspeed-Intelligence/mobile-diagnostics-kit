@@ -143,6 +143,7 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).toContain('mobile_diagnostics_ota_title')
     expect(activity).toContain('mobile_diagnostics_ota_description')
     expect(activity).toContain('mobile_diagnostics_network_privacy_title')
+    expect(activity).not.toContain('text = "↻"')
   })
 
   it('shows the relaunch state after an update finishes downloading', () => {

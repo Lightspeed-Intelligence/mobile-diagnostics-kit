@@ -96,11 +96,6 @@ export function OtaPanel({
       </View>
 
       <View style={styles.otaCard}>
-        <View style={styles.otaIcon}>
-          <Text accessible={false} style={styles.otaIconText}>
-            ↻
-          </Text>
-        </View>
         <Text style={styles.otaTitle}>{labels.otaTitle}</Text>
         <Text style={styles.otaDescription}>{labels.otaDescription}</Text>
         <Pressable

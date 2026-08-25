@@ -156,5 +156,7 @@ describe('React Native diagnostics presentation contract', () => {
     expect(panel).toContain('runtimeInfo.channel')
     expect(panel).toContain('runtimeInfo.runtimeVersion')
     expect(panel).toContain('runtimeInfo.launchSource')
+    expect(panel).not.toContain('styles.otaIcon')
+    expect(panel).not.toContain('otaIconText')
   })
 })

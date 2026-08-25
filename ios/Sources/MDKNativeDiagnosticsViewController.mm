@@ -1933,18 +1933,6 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_content addArrangedSubview:runtime];
 
   UIStackView *action = [self cardWithColor:MDKCardColor() radius:14.0];
-  UILabel *icon = [self labelWithText:@"↻"];
-  icon.font = [UIFont systemFontOfSize:27.0 weight:UIFontWeightMedium];
-  icon.textColor = MDKAccentColor();
-  icon.textAlignment = NSTextAlignmentCenter;
-  icon.backgroundColor = MDKAccentSurfaceColor();
-  icon.layer.cornerRadius = 22.0;
-  icon.layer.masksToBounds = YES;
-  icon.accessibilityElementsHidden = YES;
-  [icon.widthAnchor constraintEqualToConstant:44.0].active = YES;
-  [icon.heightAnchor constraintEqualToConstant:44.0].active = YES;
-  [action addArrangedSubview:icon];
-  action.alignment = UIStackViewAlignmentLeading;
   UILabel *title = [self labelWithText:MDKOtaActionTitle()];
   title.font = [UIFont boldSystemFontOfSize:19.0];
   [action addArrangedSubview:title];

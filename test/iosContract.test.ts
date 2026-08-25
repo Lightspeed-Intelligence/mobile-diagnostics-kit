@@ -308,5 +308,6 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('MDKBorderColor')
     expect(source).toContain('safeAreaLayoutGuide')
     expect(source).toContain('accessibilityLabel')
+    expect(source).not.toContain('labelWithText:@"↻"')
   })
 })
