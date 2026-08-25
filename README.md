@@ -1,153 +1,62 @@
 # Mobile Diagnostics Kit
 
-Mobile Diagnostics Kit is a small, privacy-oriented developer toolbox for
-React Native and Expo applications. It keeps DoKit's native network inspector
-and adds a polished on-device panel for allow-listed MMKV state and compatible
-Expo OTA updates.
+Mobile Diagnostics Kit adds an on-device DoKit panel to React Native and Expo
+apps. It provides native Network, Local State, and Expo Update pages without
+requiring a diagnostics component in the app's React tree.
 
-## What it provides
+## Install
 
-- DoKit 3.7.11 setup for Expo Android, including React Native OkHttp capture;
-- DoKit 3.1.7 ownership and installation wrapper for iOS;
-- a compact React Native diagnostics panel with accessible touch targets;
-- MMKV field add, update, delete, and explicitly permitted entry reset;
-- support for nested Zustand persist envelopes through `valuePath`;
-- Expo update check, download, and optional reload through a host adapter;
-- deny-by-default build and storage access controls.
-
-The library does not run a server, accept arbitrary OTA URLs, or upload local
-state. DoKit analytics are disabled on both native platforms.
-
-## Install from GitHub
-
-This repository is not published to npm or CocoaPods. Pin a release tag or
-commit from GitHub:
+Pin a reviewed commit:
 
 ```sh
-npm install github:Lightspeed-Intelligence/mobile-diagnostics-kit#v0.1.0
+npm install github:Lightspeed-Intelligence/mobile-diagnostics-kit#<commit>
 ```
 
-## React Native panel
+No host source patching is required. The dependency is the opt-in: React Native
+autolinking merges the Android library manifest and links the iOS pod. Removing
+the dependency removes DoKit from the next native binary.
 
-Mount the panel once near the application root. The host owns the build gate,
-MMKV instance, allowed keys, copy, and Expo adapter.
+This makes the package suitable for an isolated internal-build pipeline:
 
-```tsx
-import * as Updates from 'expo-updates'
-import {
-  MobileDiagnostics,
-  parseDiagnosticsFlag,
-  type StorageEntryConfig,
-} from 'mobile-diagnostics-kit'
-import { storage } from './storage'
+- the diagnostics pipeline adds one exact dependency and mechanically updates
+  the package lock;
+- ordinary pipelines do not add the dependency and therefore cannot link or
+  start DoKit;
+- adding or removing the dependency changes the native fingerprint and requires
+  one full build;
+- later builds with the same dependency still use the host's existing
+  fingerprint/OTA decision logic.
 
-const entries = [
-  {
-    key: 'onboarding-storage',
-    label: 'Onboarding flags',
-    valuePath: ['state'],
-    allowedFields: ['hasSeenWelcome', 'hasSeenFeatureTour'],
-    allowReset: true,
-  },
-] satisfies readonly StorageEntryConfig[]
+## Native ownership
 
-export function AppDiagnostics() {
-  return (
-    <MobileDiagnostics
-      enabled={parseDiagnosticsFlag(
-        process.env.EXPO_PUBLIC_MOBILE_DIAGNOSTICS
-      )}
-      entries={entries}
-      storage={storage}
-      updates={Updates}
-    />
-  )
-}
-```
+Android publishes a standard React Native AAR. A private manifest provider
+installs DoKit and its single application-window launcher after process startup.
+The launcher remains above React Native dialog windows, including login screens,
+without requesting system-overlay permission or adding a second floating state.
 
-`enabled` defaults to `false`; `entries` defaults to an empty array. The
-component does not fall back to `__DEV__`, because an internal-flavoured bundle
-can still be embedded in a release configuration.
+iOS publishes `MobileDiagnosticsKit.podspec`. The pod waits for a connected
+window scene, installs DoKit, and presents its own full-screen native diagnostics
+controller. No `Podfile`, `SceneDelegate`, or host navigation changes are needed.
 
-`storage` is structural and works with an MMKV instance that implements the
-small `MMKVStorageLike` interface. A non-Expo React Native app may omit
-`updates`; the OTA tab will report that updates are unsupported.
+Both platforms disable DoKit telemetry before installation. Unsupported built-in
+platform tools are removed, and custom titles follow DoKit's English/Chinese
+locale behavior.
 
-### Storage policy
+## Tools
 
-Each entry must use an exact key. Wildcards and automatic MMKV enumeration are
-not supported. Prefer `allowedFields` even for an allowed key. Field names that
-look like credentials, cookies, passwords, private keys, API keys, or crash
-reporting credentials are recursively redacted and cannot be changed through
-the inspector. Whole-entry deletion requires `allowReset: true`.
+- **Network** reads DoKit's in-memory captures and does not upload them.
+- **Local State** enumerates the default MMKV instance. Automatically discovered
+  values are read-only; credential-like keys and nested fields are redacted.
+- **Expo Update** shows update ID, publish time, channel, runtime version,
+  embedded/OTA source, and a branch when the update manifest provides one. It
+  can check, fetch, and relaunch only through the installed Expo Updates
+  controller; it cannot change update URLs or bypass runtime compatibility.
 
-The host can replace any user-facing string through the `labels` prop without
-forking the UI.
+## Compatibility API
 
-## Expo Android + DoKit
-
-Include the config plugin only in the internal build configuration:
-
-```js
-const enableDiagnostics = process.env.MOBILE_DIAGNOSTICS === '1'
-
-module.exports = {
-  expo: {
-    plugins: [
-      ...(enableDiagnostics ? ['mobile-diagnostics-kit'] : []),
-    ],
-  },
-}
-```
-
-The plugin adds DoKit, the OkHttp v4 adapter, a compatible Volley version,
-React Native's shared OkHttp interceptor, and the required release keep rule.
-Its initialization calls `disableUpload()` before DoKit starts.
-
-Config plugins change native projects, so a new Android binary is required
-when adding or removing DoKit. The React Native panel can then evolve through
-the normal JS delivery path permitted by the host application.
-
-## Native iOS + DoKit
-
-Keep the pod out of App Store configurations. For a local npm dependency in a
-brownfield shell, point CocoaPods at the package's `ios` directory:
-
-```ruby
-pod 'MobileDiagnosticsKit',
-  :path => 'path/to/node_modules/mobile-diagnostics-kit/ios',
-  :configurations => ['Debug', 'QA']
-```
-
-Install the entry after the active `UIWindowScene` is connected and visible:
-
-```swift
-#if DEBUG || INTERNAL_QA
-import MobileDiagnosticsKit
-#endif
-
-// SceneDelegate.scene(_:willConnectTo:options:), after makeKeyAndVisible()
-#if DEBUG || INTERNAL_QA
-MobileDiagnostics.install()
-#endif
-```
-
-The wrapper disables DoKit 3.1.7's internal telemetry collector before the
-floating entry is installed. It does not modify files inside `Pods`.
-
-## Expo OTA semantics
-
-“Apply update” means check the installed runtime and channel, fetch a compatible
-update, and reload if requested. It deliberately cannot switch channels,
-bypass `runtimeVersion`, or use a caller-provided URL. If `expo-updates` is
-disabled in the binary, the result is `unsupported`.
-
-## Public API stability
-
-The package exports the panel, storage inspector, OTA controller, build-flag
-parser, labels, and their TypeScript contracts. Error results use stable codes;
-provider error text, manifests, and native exceptions are not part of the
-public API.
+The existing React Native component, storage inspector, OTA controller, and
+Expo config plugin remain exported for older hosts. New dependency-only hosts do
+not need to import or mount them.
 
 ## Development
 
@@ -156,5 +65,5 @@ npm install --include=dev
 npm run verify
 ```
 
-MIT licensed. Contributions should keep examples generic and must not include
-real credentials, endpoints, account data, or proprietary storage keys.
+MIT licensed. Never include real credentials, endpoints, account data, or
+proprietary storage values in examples or tests.

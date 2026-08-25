@@ -1,0 +1,251 @@
+package __PACKAGE__
+
+import android.app.Activity
+import android.app.Application
+import android.content.Context
+import android.os.Build
+import android.os.Bundle
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowInsets
+import android.widget.FrameLayout
+import androidx.annotation.Keep
+import com.didichuxing.doraemonkit.DoKit
+import com.didichuxing.doraemonkit.kit.AbstractKit
+import com.didichuxing.doraemonkit.kit.core.AbsDoKitView
+import com.didichuxing.doraemonkit.kit.core.DoKitViewLayoutParams
+import com.didichuxing.doraemonkit.kit.core.DoKitManager
+import java.util.LinkedHashMap
+
+internal object MobileDiagnosticsDoKit {
+  private const val CLEANUP_ATTEMPTS = 20
+  private const val DOKIT_UNIVERSAL_ACTIVITY =
+    "com.didichuxing.doraemonkit.kit.core.UniversalActivity"
+  private val UNSUPPORTED_BUILT_IN_KIT_IDS = setOf(
+    "dokit_sdk_performance_ck_network",
+    "dokit_sdk_platform_ck_mock",
+    "dokit_sdk_platform_ck_health",
+    "dokit_sdk_platform_ck_dokit_connect",
+    "dokit_sdk_platform_ck_dokit_for_web",
+  )
+  private var lifecycleRestoreInstalled = false
+  private var inspectorVisible = false
+  private var panelRestoreGeneration = 0
+  private var panelRestorePending = false
+  private var currentActivity: Activity? = null
+
+  fun kits(context: Context): LinkedHashMap<String, List<AbstractKit>> = linkedMapOf(
+    context.getString(R.string.mobile_diagnostics_application_tools) to listOf(
+      DestinationKit("network"),
+      DestinationKit("storage"),
+      DestinationKit("ota"),
+    ),
+  )
+
+  fun scheduleUnsupportedBuiltInKitCleanup() {
+    cleanupUnsupportedBuiltInKits(0)
+  }
+
+  fun installLifecycleRestore(application: Application) {
+    if (lifecycleRestoreInstalled) return
+    lifecycleRestoreInstalled = true
+    application.registerActivityLifecycleCallbacks(
+      object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+          installDoKitSafeAreaInsets(activity)
+        }
+        override fun onActivityStarted(activity: Activity) = Unit
+        override fun onActivityResumed(activity: Activity) {
+          currentActivity = activity
+          if (inspectorVisible) return
+          if (panelRestorePending) {
+            scheduleToolPanelRestore(activity)
+            return
+          }
+          activity.window.decorView.post {
+            if (inspectorVisible || currentActivity !== activity) return@post
+            DoKit.hide()
+            DoKitManager.MAIN_ICON_HAS_SHOW = false
+            DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
+            showLauncherIfMissing(activity)
+          }
+        }
+        override fun onActivityPaused(activity: Activity) = Unit
+        override fun onActivityStopped(activity: Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+        override fun onActivityDestroyed(activity: Activity) {
+          if (currentActivity === activity) currentActivity = null
+        }
+      },
+    )
+  }
+
+  fun hideLauncherForInspector() {
+    inspectorVisible = true
+    panelRestorePending = false
+    panelRestoreGeneration += 1
+    DoKit.removeFloating(MobileDiagnosticsMainIconDoKitView::class.java)
+  }
+
+  fun restoreLauncherAfterInspector() {
+    inspectorVisible = false
+    panelRestorePending = false
+    panelRestoreGeneration += 1
+    currentActivity?.let { showLauncherIfMissing(it) }
+  }
+
+  fun returnToToolPanelAfterInspector() {
+    inspectorVisible = false
+    panelRestorePending = true
+    currentActivity?.let { scheduleToolPanelRestore(it) }
+  }
+
+  fun showToolPanelFromModal() {
+    val activity = currentActivity ?: return
+    activity.window.decorView.post {
+      if (currentActivity !== activity ||
+          activity.isFinishing ||
+          activity.isDestroyed) return@post
+      DoKit.showToolPanel()
+    }
+  }
+
+  private fun scheduleToolPanelRestore(activity: Activity) {
+    panelRestoreGeneration += 1
+    val generation = panelRestoreGeneration
+
+    // React calls this bridge only after the Modal's hidden state commits.
+    // Post one UI turn so its Dialog is detached before DoKit owns focus again.
+    activity.window.decorView.post {
+      if (generation != panelRestoreGeneration ||
+          !panelRestorePending ||
+          inspectorVisible ||
+          currentActivity !== activity ||
+          activity.isFinishing ||
+          activity.isDestroyed) return@post
+      panelRestorePending = false
+      showLauncherIfMissing(activity)
+      DoKit.showToolPanel()
+    }
+  }
+
+  private fun showLauncherIfMissing(activity: Activity) {
+    if (DoKit.getDoKitView(activity, MobileDiagnosticsMainIconDoKitView::class.java) == null) {
+      DoKit.launchFloating(MobileDiagnosticsMainIconDoKitView::class.java)
+    }
+  }
+
+  private fun installDoKitSafeAreaInsets(activity: Activity) {
+    if (Build.VERSION.SDK_INT < 35 ||
+        activity.javaClass.name != DOKIT_UNIVERSAL_ACTIVITY) return
+
+    val content = activity.findViewById<View>(android.R.id.content) ?: return
+    val initialPadding = ContentPadding(
+      left = content.paddingLeft,
+      top = content.paddingTop,
+      right = content.paddingRight,
+      bottom = content.paddingBottom,
+    )
+    content.setOnApplyWindowInsetsListener { view, windowInsets ->
+      val safeInsets = windowInsets.getInsets(
+        WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout(),
+      )
+      view.setPadding(
+        initialPadding.left + safeInsets.left,
+        initialPadding.top + safeInsets.top,
+        initialPadding.right + safeInsets.right,
+        initialPadding.bottom + safeInsets.bottom,
+      )
+      windowInsets
+    }
+    content.requestApplyInsets()
+  }
+
+  private data class ContentPadding(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+  )
+
+  /**
+   * Keep the launcher itself bounded even though DoKit's activity overlay
+   * uses a full-screen container. Only the icon content handles clicks.
+   */
+  @Keep
+  internal class MobileDiagnosticsMainIconDoKitView : AbsDoKitView() {
+    override fun onCreate(context: Context) = Unit
+
+    override fun onCreateView(context: Context, view: FrameLayout): View =
+      LayoutInflater.from(context).inflate(
+        com.didichuxing.doraemonkit.R.layout.dk_main_launch_icon,
+        view,
+        false,
+      )
+
+    override fun onViewCreated(view: FrameLayout) {
+      doKitView?.setOnClickListener { DoKit.showToolPanel() }
+    }
+
+    override fun initDokitViewLayoutParams(params: DoKitViewLayoutParams) {
+      val launcherSize = (
+        LAUNCHER_SIZE_DP * DoKit.APPLICATION.resources.displayMetrics.density
+      ).toInt()
+      params.width = launcherSize
+      params.height = launcherSize
+      params.gravity = Gravity.TOP or Gravity.START
+      params.x = com.didichuxing.doraemonkit.config.FloatIconConfig.getLastPosX()
+      params.y = com.didichuxing.doraemonkit.config.FloatIconConfig.getLastPosY()
+    }
+
+    private companion object {
+      const val LAUNCHER_SIZE_DP = 48
+    }
+  }
+
+  private fun cleanupUnsupportedBuiltInKits(attempt: Int) {
+    DoKitManager.GLOBAL_KITS.values.forEach { kits ->
+      kits.removeAll { isUnsupportedBuiltInKit(it.kit?.innerKitId()) }
+    }
+    DoKitManager.GLOBAL_SYSTEM_KITS.values.forEach { kits ->
+      kits.removeAll { isUnsupportedBuiltInKit(it.kit?.innerKitId()) }
+    }
+    if (attempt < CLEANUP_ATTEMPTS) {
+      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+        { cleanupUnsupportedBuiltInKits(attempt + 1) },
+        100L,
+      )
+    }
+  }
+
+  private fun isUnsupportedBuiltInKit(kitId: String?): Boolean =
+    kitId != null && kitId in UNSUPPORTED_BUILT_IN_KIT_IDS
+
+  private class DestinationKit(
+    private val destination: String,
+  ) : AbstractKit() {
+    override val name: Int
+      get() = when (destination) {
+        "network" -> R.string.mobile_diagnostics_network
+        "ota" -> R.string.mobile_diagnostics_expo_update
+        else -> R.string.mobile_diagnostics_local_state
+      }
+
+    override val icon: Int
+      get() = when (destination) {
+        "network" -> android.R.drawable.ic_menu_search
+        "ota" -> R.drawable.mobile_diagnostics_expo_update
+        else -> android.R.drawable.ic_menu_edit
+      }
+
+    override fun onAppInit(context: Context?) {
+      if (destination == "network") scheduleUnsupportedBuiltInKitCleanup()
+    }
+
+    override fun onClickWithReturn(activity: Activity): Boolean {
+      if (destination == "network") cleanupUnsupportedBuiltInKits(0)
+      return MobileDiagnosticsLauncher.openAfterPanelDismiss(activity, destination)
+    }
+  }
+}

@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <provider
+      android:name=".MobileDiagnosticsInitProvider"
+      android:authorities="${applicationId}.mobile-diagnostics-kit-init"
+      android:exported="false"
+      android:initOrder="100" />
+
+    <activity
+      android:name=".MobileDiagnosticsActivity"
+      android:exported="false"
+      android:theme="@style/MobileDiagnosticsTheme" />
+  </application>
+</manifest>

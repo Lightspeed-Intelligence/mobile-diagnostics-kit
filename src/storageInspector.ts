@@ -13,7 +13,7 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
 export type JsonObject = { [key: string]: JsonValue }
 
 export interface StorageEntryConfig {
-  /** Exact MMKV key. Wildcards are deliberately unsupported. */
+  /** Exact MMKV key that may be edited. Other stored keys remain read-only. */
   key: string
   label?: string
   description?: string
@@ -40,6 +40,7 @@ export interface StorageEntrySnapshot {
   kind: StorageValueKind
   value: JsonValue | undefined
   isObject: boolean
+  canEdit: boolean
   canReset: boolean
 }
 
@@ -161,6 +162,20 @@ function objectAtPath(
   return current
 }
 
+function valueAtPath(
+  value: JsonValue | undefined,
+  path: readonly string[]
+): JsonValue | undefined {
+  let current = value
+  for (const segment of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined
+    }
+    current = current[segment]
+  }
+  return current
+}
+
 function replaceObjectAtPath(
   root: JsonObject,
   path: readonly string[],
@@ -218,12 +233,28 @@ export function createStorageInspector(
 ): StorageInspector {
   const entryMap = new Map(config.entries.map((entry) => [entry.key, entry]))
 
-  const getConfig = (key: string): StorageEntryConfig => {
+  const getConfiguredEntry = (key: string): StorageEntryConfig => {
     const entry = entryMap.get(key)
     if (!entry) {
       throw new StorageInspectorError('KEY_NOT_ALLOWED')
     }
     return entry
+  }
+
+  const getReadableEntry = (
+    key: string
+  ): { config: StorageEntryConfig; canEdit: boolean } => {
+    const configured = entryMap.get(key)
+    if (configured) {
+      return {
+        config: configured,
+        canEdit: !isSensitiveName(key, []),
+      }
+    }
+    if (!storage.getAllKeys().includes(key)) {
+      throw new StorageInspectorError('KEY_NOT_ALLOWED')
+    }
+    return { config: { key }, canEdit: false }
   }
 
   const assertFieldAllowed = (entry: StorageEntryConfig, field: string) => {
@@ -238,11 +269,18 @@ export function createStorageInspector(
     }
   }
 
-  const getEntry = (key: string): StorageEntrySnapshot => {
-    const entry = getConfig(key)
+  const createSnapshot = (
+    entry: StorageEntryConfig,
+    canEdit: boolean
+  ): StorageEntrySnapshot => {
+    const key = entry.key
     const raw = readRawValue(storage, key)
-    const target = objectAtPath(raw.value, entry.valuePath ?? [])
-    const value = filterFields(target, entry)
+    const target = valueAtPath(raw.value, entry.valuePath ?? [])
+    const value = isSensitiveName(key, [])
+      ? raw.value === undefined
+        ? undefined
+        : REDACTED
+      : filterFields(target, entry)
     return {
       key,
       label: entry.label ?? key,
@@ -251,15 +289,21 @@ export function createStorageInspector(
       value,
       isObject:
         value !== null && typeof value === 'object' && !Array.isArray(value),
+      canEdit,
       canReset: entry.allowReset === true,
     }
+  }
+
+  const getEntry = (key: string): StorageEntrySnapshot => {
+    const { config: entry, canEdit } = getReadableEntry(key)
+    return createSnapshot(entry, canEdit)
   }
 
   const updateTarget = (
     key: string,
     transform: (target: JsonObject) => JsonObject
   ) => {
-    const entry = getConfig(key)
+    const entry = getConfiguredEntry(key)
     const raw = readRawValue(storage, key)
     const root = objectAtPath(raw.value, [])
     const target = objectAtPath(raw.value, entry.valuePath ?? [])
@@ -275,16 +319,33 @@ export function createStorageInspector(
   }
 
   return {
-    listEntries: () => config.entries.map((entry) => getEntry(entry.key)),
+    listEntries: () => {
+      const configuredKeys = new Set(entryMap.keys())
+      const discoveredKeys = Array.from(new Set(storage.getAllKeys())).filter(
+        (key) => !configuredKeys.has(key)
+      )
+      return [
+        ...Array.from(entryMap.values()).map((entry) =>
+          createSnapshot(entry, !isSensitiveName(entry.key, []))
+        ),
+        ...discoveredKeys.map((key) => createSnapshot({ key }, false)),
+      ]
+    },
     getEntry,
     setField: (key, field, value) => {
-      const entry = getConfig(key)
+      const entry = getConfiguredEntry(key)
+      if (isSensitiveName(key, [])) {
+        throw new StorageInspectorError('SENSITIVE_FIELD')
+      }
       assertFieldAllowed(entry, field)
       assertJsonValue(value)
       updateTarget(key, (target) => ({ ...target, [field]: value }))
     },
     removeField: (key, field) => {
-      const entry = getConfig(key)
+      const entry = getConfiguredEntry(key)
+      if (isSensitiveName(key, [])) {
+        throw new StorageInspectorError('SENSITIVE_FIELD')
+      }
       assertFieldAllowed(entry, field)
       updateTarget(key, (target) => {
         const next = { ...target }
@@ -293,7 +354,7 @@ export function createStorageInspector(
       })
     },
     resetEntry: (key) => {
-      const entry = getConfig(key)
+      const entry = getConfiguredEntry(key)
       if (!entry.allowReset) {
         throw new StorageInspectorError('RESET_NOT_ALLOWED')
       }

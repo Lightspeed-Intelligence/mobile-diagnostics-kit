@@ -14,7 +14,8 @@ Mobile Diagnostics Kit is designed for internal builds:
 - the library has no service, account, analytics SDK, or upload endpoint;
 - Android DoKit telemetry is disabled through `disableUpload()`;
 - iOS DoKit telemetry collection is disabled before DoKit is installed;
-- Expo update results expose stable status codes, not manifests or URLs.
+- Expo update results expose stable status codes and normalized current-bundle
+  identifiers, not manifests or URLs.
 
 Applications are still responsible for excluding this dependency and its
 build switches from store configurations.

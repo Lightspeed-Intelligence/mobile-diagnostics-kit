@@ -1,5 +1,6 @@
 import {
   createOtaController,
+  getOtaRuntimeInfo,
   type UpdatesLike,
 } from '../src/otaController'
 
@@ -64,6 +65,49 @@ describe('createOtaController', () => {
     await expect(controller.applyAvailableUpdate()).resolves.toEqual({
       status: 'failed',
       code: 'CHECK_FAILED',
+    })
+  })
+})
+
+describe('getOtaRuntimeInfo', () => {
+  it('reports the exact source branch and currently running Expo update', () => {
+    const runtimeInfo = getOtaRuntimeInfo(
+      createUpdates({
+        channel: 'fe-feat-story-7057850087-debug',
+        createdAt: new Date('2026-08-21T08:15:30.000Z'),
+        isEmbeddedLaunch: false,
+        runtimeVersion: '1.4.4',
+        updateId: '11111111-2222-3333-4444-555555555555',
+      }),
+      'feat/story-7057850087'
+    )
+
+    expect(runtimeInfo).toEqual({
+      channel: 'fe-feat-story-7057850087-debug',
+      createdAt: '2026-08-21T08:15:30.000Z',
+      launchSource: 'ota',
+      runtimeVersion: '1.4.4',
+      sourceBranch: 'feat/story-7057850087',
+      updateId: '11111111-2222-3333-4444-555555555555',
+    })
+  })
+
+  it('uses stable missing values for unavailable or invalid metadata', () => {
+    expect(
+      getOtaRuntimeInfo(
+        createUpdates({
+          createdAt: new Date(Number.NaN),
+          isEmbeddedLaunch: true,
+        }),
+        '   '
+      )
+    ).toEqual({
+      channel: null,
+      createdAt: null,
+      launchSource: 'embedded',
+      runtimeVersion: null,
+      sourceBranch: null,
+      updateId: null,
     })
   })
 })

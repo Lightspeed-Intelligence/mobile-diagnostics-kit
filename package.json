@@ -1,6 +1,6 @@
 {
   "name": "mobile-diagnostics-kit",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "On-device diagnostics for React Native and Expo apps, powered by DoKit",
   "keywords": [
     "react-native",
@@ -31,12 +31,17 @@
     },
     "./plugin": "./plugin/withDoKit.js",
     "./plugin/withDoKit": "./plugin/withDoKit.js",
-    "./ios/MobileDiagnosticsKit.podspec": "./ios/MobileDiagnosticsKit.podspec"
+    "./app.plugin.js": "./app.plugin.js",
+    "./ios/MobileDiagnosticsKit.podspec": "./ios/MobileDiagnosticsKit.podspec",
+    "./MobileDiagnosticsKit.podspec": "./MobileDiagnosticsKit.podspec"
   },
   "files": [
     "src",
     "plugin",
+    "android",
     "ios",
+    "MobileDiagnosticsKit.podspec",
+    "react-native.config.js",
     "app.plugin.js",
     "README.md",
     "LICENSE"

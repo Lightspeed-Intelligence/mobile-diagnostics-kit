@@ -211,9 +211,18 @@ export function StoragePanel({
                 return (
                   <View key={field} style={styles.fieldRow}>
                     <Pressable
-                      accessibilityLabel={labels.editField(field)}
-                      accessibilityRole="button"
-                      onPress={() => editField(field, value)}
+                      accessibilityLabel={
+                        selected.canEdit ? labels.editField(field) : undefined
+                      }
+                      accessibilityRole={
+                        selected.canEdit ? 'button' : undefined
+                      }
+                      disabled={!selected.canEdit}
+                      onPress={
+                        selected.canEdit
+                          ? () => editField(field, value)
+                          : undefined
+                      }
                       style={styles.fieldEditButton}
                       testID={`${testIDPrefix}.storage.field.${segment}Button`}
                     >
@@ -222,18 +231,20 @@ export function StoragePanel({
                         {formatPreview(value, labels)}
                       </Text>
                     </Pressable>
-                    <Pressable
-                      accessibilityLabel={labels.deleteField(field)}
-                      accessibilityRole="button"
-                      onPress={() => removeField(field)}
-                      style={({ pressed }) => [
-                        styles.removeButton,
-                        pressed && styles.pressed,
-                      ]}
-                      testID={`${testIDPrefix}.storage.field.${segment}DeleteButton`}
-                    >
-                      <Text style={styles.removeText}>{labels.delete}</Text>
-                    </Pressable>
+                    {selected.canEdit ? (
+                      <Pressable
+                        accessibilityLabel={labels.deleteField(field)}
+                        accessibilityRole="button"
+                        onPress={() => removeField(field)}
+                        style={({ pressed }) => [
+                          styles.removeButton,
+                          pressed && styles.pressed,
+                        ]}
+                        testID={`${testIDPrefix}.storage.field.${segment}DeleteButton`}
+                      >
+                        <Text style={styles.removeText}>{labels.delete}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 )
               }
@@ -242,7 +253,7 @@ export function StoragePanel({
             <Text style={styles.emptyText}>{labels.entryNotObject}</Text>
           )}
 
-          {selected.isObject ? (
+          {selected.isObject && selected.canEdit ? (
             <View style={styles.editorBlock}>
               <Text style={styles.editorTitle}>{labels.editorTitle}</Text>
               <Text style={styles.inputLabel}>{labels.fieldNameLabel}</Text>

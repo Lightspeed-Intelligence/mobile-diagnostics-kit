@@ -1,0 +1,6 @@
+-keep class com.didichuxing.doraemonkit.** { *; }
+-keep class com.mobilediagnosticskit.** { *; }
+-dontwarn coil.**
+-dontwarn com.nostra13.universalimageloader.**
+-dontwarn com.squareup.picasso.**
+-dontwarn com.tencent.smtt.**
