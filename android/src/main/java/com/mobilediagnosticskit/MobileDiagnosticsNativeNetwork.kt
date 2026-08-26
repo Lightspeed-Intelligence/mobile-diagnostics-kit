@@ -119,13 +119,15 @@ object MobileDiagnosticsNativeNetwork {
     )
   }
 
-  /** Adds passive capture once to an OkHttp client built in an Android debug source set. */
+  /** Adds passive capture once without allowing diagnostics setup to break client creation. */
   @JvmStatic
-  fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.apply {
-    val alreadyCaptured = interceptors().any {
-      it is MobileDiagnosticsOkHttpInterceptor || it.javaClass.name == DOKIT_CAP_INTERCEPTOR
+  fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also { target ->
+    runCatching {
+      val alreadyCaptured = target.interceptors().any {
+        it is MobileDiagnosticsOkHttpInterceptor || it.javaClass.name == DOKIT_CAP_INTERCEPTOR
+      }
+      if (!alreadyCaptured) target.addInterceptor(MobileDiagnosticsOkHttpInterceptor())
     }
-    if (!alreadyCaptured) addInterceptor(MobileDiagnosticsOkHttpInterceptor())
   }
 
   private fun decodeTextBody(body: ByteArray?, contentType: String?): String? {

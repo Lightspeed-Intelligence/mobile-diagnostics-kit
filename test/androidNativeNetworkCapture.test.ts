@@ -30,6 +30,10 @@ describe('Android native network capture contract', () => {
     expect(recorder).toContain('NetworkManager.get().addRecord')
     expect(recorder).toContain('NetworkManager.get().updateRecord')
     expect(recorder).not.toContain('HttpUrlConnectionProxyUtil')
+    expect(recorder).toContain(
+      'fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also'
+    )
+    expect(recorder).toContain('runCatching {\n      val alreadyCaptured')
   })
 
   it('offers an additive OkHttp interceptor that preserves native call results', () => {
@@ -45,5 +49,64 @@ describe('Android native network capture contract', () => {
     expect(interceptor).toContain('throw error')
     expect(interceptor).not.toContain('Response.Builder()')
     expect(interceptor).not.toContain('code(400)')
+  })
+
+  it('ships modern AGP instrumentation for OkHttp and HttpURLConnection without host code', () => {
+    const expoModuleConfig = JSON.parse(source('expo-module.config.json')) as {
+      platforms: string[]
+      apple: {
+        podspecPath: string
+      }
+      android: {
+        gradlePlugins: Array<{
+          id: string
+          group: string
+          sourceDir: string
+        }>
+      }
+    }
+    const gradlePlugin = source(
+      'android-gradle-plugin/src/main/java/com/mobilediagnosticskit/gradle/MobileDiagnosticsNetworkCapturePlugin.java'
+    )
+    const visitor = source(
+      'android-gradle-plugin/src/main/java/com/mobilediagnosticskit/gradle/NetworkCaptureClassVisitorFactory.java'
+    )
+    const urlConnectionCapture = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsHttpUrlConnectionCapture.kt'
+    )
+
+    expect(expoModuleConfig.android.gradlePlugins).toContainEqual({
+      id: 'mobile-diagnostics-network-capture',
+      group: 'com.mobilediagnosticskit',
+      sourceDir: 'android-gradle-plugin',
+    })
+    expect(expoModuleConfig.platforms).toEqual(['apple', 'android'])
+    expect(expoModuleConfig.apple.podspecPath).toBe(
+      './ios/MobileDiagnosticsKit.podspec'
+    )
+    expect(gradlePlugin).toContain('InstrumentationScope.ALL')
+    expect(gradlePlugin).toContain('selector().all()')
+    expect(gradlePlugin).not.toContain('isDebuggable')
+    expect(gradlePlugin).not.toContain('Release')
+    expect(visitor).toContain('okhttp3/OkHttpClient')
+    expect(visitor).toContain('MobileDiagnosticsNativeNetwork')
+    expect(visitor).toContain('java/net/HttpURLConnection')
+    expect(visitor).toContain('javax/net/ssl/HttpsURLConnection')
+    expect(visitor).toContain('replacementForInputStream')
+    expect(visitor).toContain('replacementForOutputStream')
+    expect(visitor).toContain('replacementForResponseCode')
+    expect(visitor).toContain('replacementForDisconnect')
+    expect(visitor).not.toContain('HttpUrlConnectionProxyUtil')
+    expect(urlConnectionCapture).toContain('throw error')
+    expect(urlConnectionCapture).toContain('FilterInputStream')
+    expect(urlConnectionCapture).toContain('FilterOutputStream')
+    expect(urlConnectionCapture).toContain('`in`.read(bytes)')
+    expect(urlConnectionCapture).toContain('out.write(bytes)')
+    expect(urlConnectionCapture).toContain(
+      'private fun stateFor(connection: HttpURLConnection): CaptureState?'
+    )
+    expect(urlConnectionCapture).toContain('runCatching { capture.append')
+    expect(urlConnectionCapture).not.toContain('Response.Builder()')
+    expect(urlConnectionCapture).not.toContain('code(400)')
   })
 })
