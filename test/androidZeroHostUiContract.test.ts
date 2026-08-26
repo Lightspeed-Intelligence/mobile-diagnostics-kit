@@ -168,7 +168,7 @@ describe('Android zero-host diagnostics UI contract', () => {
     )
   })
 
-  it('retries a failed OTA download once before reporting the final error', () => {
+  it('retries a failed OTA download with a bounded backoff before reporting the final error', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
     )
@@ -177,14 +177,40 @@ describe('Android zero-host diagnostics UI contract', () => {
     const helper = activity.slice(helperStart, helperEnd)
 
     expect(helperStart).toBeGreaterThanOrEqual(0)
-    expect(helper).toContain('OTA_FETCH_RETRY_DELAY_MS')
-    expect(helper).toContain('delay(OTA_FETCH_RETRY_DELAY_MS)')
-    expect(helper.match(/controller\.fetchUpdate\(\)/g)).toHaveLength(2)
-    expect(helper).not.toContain('while (')
-    expect(helper).not.toContain('repeat(')
+    expect(helper).toContain('OTA_RETRY_ATTEMPTS')
+    expect(helper).toContain('OTA_RETRY_DELAY_MS')
+    expect(helper).toContain('delay(OTA_RETRY_DELAY_MS * attempt)')
+    expect(helper.match(/controller\.fetchUpdate\(\)/g)).toHaveLength(1)
+    expect(helper).toContain('while (true)')
     expect(activity).toContain(
       'error(getString(R.string.mobile_diagnostics_download_failed))'
     )
+  })
+
+  it('retries the update check and logs each OTA stage before applying', () => {
+    const activity = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
+    )
+
+    expect(activity).toContain(
+      'when (checkForUpdateWithRetry(controller)) {'
+    )
+    const checkHelperStart = activity.indexOf(
+      'private suspend fun checkForUpdateWithRetry('
+    )
+    const checkHelperEnd = activity.indexOf(
+      'private suspend fun fetchUpdateWithRetry(',
+      checkHelperStart
+    )
+    const checkHelper = activity.slice(checkHelperStart, checkHelperEnd)
+
+    expect(checkHelperStart).toBeGreaterThanOrEqual(0)
+    expect(checkHelper).toContain('OTA_RETRY_ATTEMPTS')
+    expect(checkHelper).toContain('OTA_RETRY_DELAY_MS')
+    expect(checkHelper).toContain('controller.checkForUpdate()')
+    expect(checkHelper).toContain('logOtaStage("check"')
+    expect(activity).toContain('logOtaStage("fetch"')
+    expect(activity).toContain('logOtaStage("reload"')
   })
 
   it('localizes OTA and network detail labels on Android', () => {

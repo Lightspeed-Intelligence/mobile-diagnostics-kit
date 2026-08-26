@@ -22,6 +22,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -1303,7 +1304,7 @@ class MobileDiagnosticsActivity : Activity() {
     button: TextView,
   ) {
     runCatching {
-      when (controller.checkForUpdate()) {
+      when (checkForUpdateWithRetry(controller)) {
         is IUpdatesController.CheckForUpdateResult.UpdateAvailable,
         is IUpdatesController.CheckForUpdateResult.RollBackToEmbedded -> {
           setStatus(status, getString(R.string.mobile_diagnostics_downloading))
@@ -1311,7 +1312,14 @@ class MobileDiagnosticsActivity : Activity() {
             is IUpdatesController.FetchUpdateResult.Success,
             is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> {
               setStatus(status, getString(R.string.mobile_diagnostics_relaunching))
-              controller.relaunchReactApplicationForModule()
+              logOtaStage("reload", "start")
+              try {
+                controller.relaunchReactApplicationForModule()
+                logOtaStage("reload", "success")
+              } catch (error: Exception) {
+                logOtaStage("reload", "failure type=${error::class.java.simpleName}")
+                throw error
+              }
               renderDestination(DESTINATION_OTA)
               otaStatus?.let {
                 setStatus(it, getString(R.string.mobile_diagnostics_up_to_date))
@@ -1336,18 +1344,83 @@ class MobileDiagnosticsActivity : Activity() {
     button.alpha = 1f
   }
 
+  private suspend fun checkForUpdateWithRetry(
+    controller: IUpdatesController,
+  ): IUpdatesController.CheckForUpdateResult {
+    var attempt = 1
+    while (true) {
+      logOtaStage("check", "attempt=$attempt")
+      val result = try {
+        controller.checkForUpdate()
+      } catch (error: Exception) {
+        logOtaStage("check", "attempt=$attempt failure type=${error::class.java.simpleName}")
+        if (attempt >= OTA_RETRY_ATTEMPTS) throw error
+        delay(OTA_RETRY_DELAY_MS * attempt)
+        attempt += 1
+        continue
+      }
+
+      when (result) {
+        is IUpdatesController.CheckForUpdateResult.ErrorResult -> {
+          logOtaStage(
+            "check",
+            "attempt=$attempt failure type=${result.error::class.java.simpleName}",
+          )
+          if (attempt >= OTA_RETRY_ATTEMPTS) return result
+          delay(OTA_RETRY_DELAY_MS * attempt)
+          attempt += 1
+        }
+        else -> {
+          logOtaStage("check", "attempt=$attempt result=${result::class.java.simpleName}")
+          return result
+        }
+      }
+    }
+  }
+
   private suspend fun fetchUpdateWithRetry(
     controller: IUpdatesController,
   ): IUpdatesController.FetchUpdateResult {
-    return when (val result = controller.fetchUpdate()) {
-      is IUpdatesController.FetchUpdateResult.Success,
-      is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> result
-      is IUpdatesController.FetchUpdateResult.ErrorResult,
-      is IUpdatesController.FetchUpdateResult.Failure -> {
-        delay(OTA_FETCH_RETRY_DELAY_MS)
+    var attempt = 1
+    while (true) {
+      logOtaStage("fetch", "attempt=$attempt")
+      val result = try {
         controller.fetchUpdate()
+      } catch (error: Exception) {
+        logOtaStage("fetch", "attempt=$attempt failure type=${error::class.java.simpleName}")
+        if (attempt >= OTA_RETRY_ATTEMPTS) throw error
+        delay(OTA_RETRY_DELAY_MS * attempt)
+        attempt += 1
+        continue
       }
+
+      when (result) {
+        is IUpdatesController.FetchUpdateResult.Success,
+        is IUpdatesController.FetchUpdateResult.RollBackToEmbedded -> {
+          logOtaStage("fetch", "attempt=$attempt result=${result::class.java.simpleName}")
+          return result
+        }
+        is IUpdatesController.FetchUpdateResult.ErrorResult -> {
+          logOtaStage(
+            "fetch",
+            "attempt=$attempt failure type=${result.error::class.java.simpleName}",
+          )
+        }
+        is IUpdatesController.FetchUpdateResult.Failure -> {
+          logOtaStage("fetch", "attempt=$attempt failure type=Failure")
+        }
+      }
+
+      if (attempt >= OTA_RETRY_ATTEMPTS) {
+        return result
+      }
+      delay(OTA_RETRY_DELAY_MS * attempt)
+      attempt += 1
     }
+  }
+
+  private fun logOtaStage(stage: String, detail: String) {
+    Log.i(OTA_LOG_TAG, "stage=$stage $detail")
   }
 
   private fun runtimeInfoRow(label: Int, value: String): View =
@@ -1636,7 +1709,9 @@ class MobileDiagnosticsActivity : Activity() {
     private const val FILTER_OTHER = "other"
     private const val FILTER_ERRORS = "errors"
     private const val NETWORK_REFRESH_INTERVAL_MS = 1_000L
-    private const val OTA_FETCH_RETRY_DELAY_MS = 1_500L
+    private const val OTA_RETRY_ATTEMPTS = 2
+    private const val OTA_RETRY_DELAY_MS = 1_500L
+    private const val OTA_LOG_TAG = "MobileDiagnosticsOTA"
     private const val MAX_BODY_CHARACTERS = 120_000
     private const val MAX_IMAGE_PREVIEW_DIMENSION = 2_048
     private const val MAX_IMAGE_PREVIEW_PIXELS = 4_000_000L
