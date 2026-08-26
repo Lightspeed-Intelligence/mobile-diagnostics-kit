@@ -34,6 +34,14 @@ installs DoKit and its single application-window launcher after process startup.
 The launcher remains above React Native dialog windows, including login screens,
 without requesting system-overlay permission or adding a second floating state.
 
+Expo autolinking also loads the package's Android Gradle plugin. The plugin uses
+the current AGP instrumentation API to attach passive capture to OkHttp clients
+and HttpURLConnection call sites in every variant that includes this dependency.
+It does not replace HttpURLConnection, synthesize status codes, or convert network
+exceptions: the original response is returned and the same failure is rethrown.
+Text capture is limited to 256 KB and image capture to 4 MB. Ordinary builds have
+no instrumentation because their pipeline does not add this dependency.
+
 iOS publishes `MobileDiagnosticsKit.podspec`. The pod waits for a connected
 window scene, installs DoKit, and presents its own full-screen native diagnostics
 controller. No `Podfile`, `SceneDelegate`, or host navigation changes are needed.

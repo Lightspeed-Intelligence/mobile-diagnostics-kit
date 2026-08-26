@@ -26,11 +26,18 @@ describe('npm package contents', () => {
       const generatedAndroidPaths = paths.filter(
         (filePath) =>
           filePath.startsWith('android/.cxx/') ||
-          filePath.startsWith('android/build/')
+          filePath.startsWith('android/build/') ||
+          filePath.startsWith('android-gradle-plugin/.gradle/') ||
+          filePath.startsWith('android-gradle-plugin/build/')
       )
 
       expect(paths).toContain('android/build.gradle')
       expect(paths).toContain('android/src/main/AndroidManifest.xml')
+      expect(paths).toContain('expo-module.config.json')
+      expect(paths).toContain('android-gradle-plugin/build.gradle.kts')
+      expect(paths).toContain(
+        'android-gradle-plugin/src/main/java/com/mobilediagnosticskit/gradle/MobileDiagnosticsNetworkCapturePlugin.java'
+      )
       expect(generatedAndroidPaths.slice(0, 10)).toEqual([])
       expect(generatedAndroidPaths).toHaveLength(0)
     },

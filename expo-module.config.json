@@ -1,0 +1,15 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "podspecPath": "./ios/MobileDiagnosticsKit.podspec"
+  },
+  "android": {
+    "gradlePlugins": [
+      {
+        "id": "mobile-diagnostics-network-capture",
+        "group": "com.mobilediagnosticskit",
+        "sourceDir": "android-gradle-plugin"
+      }
+    ]
+  }
+}
