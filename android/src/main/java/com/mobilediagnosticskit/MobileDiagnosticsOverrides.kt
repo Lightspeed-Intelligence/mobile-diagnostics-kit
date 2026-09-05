@@ -104,8 +104,8 @@ internal object MobileDiagnosticsOverrides {
   ): Boolean {
     val root = readMockRoot() ?: JSONObject()
     val valuesObject = JSONObject()
-    values.toSortedMap().forEach { (key, value) ->
-      if (key.isNotBlank()) valuesObject.put(key, value)
+    normalizeMockValues(values).forEach { (key, value) ->
+      valuesObject.put(key, value)
     }
     root.put(identifier, JSONObject().apply {
       put("enabled", enabled)
@@ -113,6 +113,14 @@ internal object MobileDiagnosticsOverrides {
     })
     return preferences()?.edit()?.putString(MOCK_OVERRIDES_KEY, root.toString())?.commit() == true
   }
+
+  /** Removes accidental whitespace-only keys while keeping user-defined experiment names. */
+  internal fun normalizeMockValues(values: Map<String, String>): Map<String, String> =
+    values.asSequence()
+      .map { (key, value) -> key.trim() to value }
+      .filter { (key, _) -> key.isNotEmpty() }
+      .sortedBy { (key, _) -> key }
+      .toMap()
 
   fun patchABConfigResponse(url: HttpUrl, method: String, body: ByteArray): ByteArray? =
     patchABConfigResponse(url, method, body, mockOverride(AB_CONFIG_MOCK_ID))

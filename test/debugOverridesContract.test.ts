@@ -9,6 +9,7 @@ describe('runtime override diagnostics contract', () => {
   it('exposes API environment and generic interface-mock tools on both platforms', () => {
     const activity = read('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt')
     const dokit = read('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsDoKit.kt')
+    const nativeNetwork = read('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsNativeNetwork.kt')
     const template = read('plugin/android/MobileDiagnosticsDoKit.kt.template')
     const iosHeader = read('ios/Sources/MobileDiagnostics.h')
     const ios = read('ios/Sources/MobileDiagnostics.m')
@@ -17,6 +18,8 @@ describe('runtime override diagnostics contract', () => {
     expect(activity).toContain('DESTINATION_MOCKS')
     expect(dokit).toContain('DESTINATION_API')
     expect(dokit).toContain('DESTINATION_MOCKS')
+    expect(dokit).toContain('MobileDiagnosticsNativeNetwork.installOverrides(')
+    expect(nativeNetwork).toContain('fun installOverrides(')
     expect(template).toContain('"api"')
     expect(template).toContain('"mocks"')
     expect(template).toContain('MobileDiagnosticsActivity.open')
@@ -52,6 +55,20 @@ describe('runtime override diagnostics contract', () => {
     expect(ios).toContain('MDKRewriteAPIURL')
   })
 
+  it('presents API environment input as an origin instead of asking for an API version path', () => {
+    const androidStrings = read('android/src/main/res/values/strings.xml')
+    const ios = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+
+    expect(androidStrings).toContain(
+      '<string name="mobile_diagnostics_api_placeholder">https://branch.api.dev.fantacy.live</string>',
+    )
+    expect(androidStrings).not.toContain(
+      '<string name="mobile_diagnostics_api_placeholder">https://branch.api.dev.fantacy.live/api/v2</string>',
+    )
+    expect(ios).toContain('@"https://branch.api.dev.fantacy.live"]')
+    expect(ios).not.toContain('@"https://branch.api.dev.fantacy.live/api/v2"]')
+  })
+
   it('injects the iOS protocol into URL sessions without replacing existing protocols', () => {
     const protocol = read('ios/Sources/MDKDiagnosticsURLProtocol.m')
 
@@ -59,6 +76,14 @@ describe('runtime override diagnostics contract', () => {
     expect(protocol).toContain('ephemeralSessionConfiguration')
     expect(protocol).toContain('method_exchangeImplementations')
     expect(protocol).toContain('configuration.protocolClasses')
+  })
+
+  it('shows the effective rewritten URL in the iOS capture view', () => {
+    const networkView = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+    const networkModule = read('ios/Sources/MDKNetworkDiagnosticsModule.m')
+
+    expect(networkView).toContain('MDKRewriteAPIURL')
+    expect(networkModule).toContain('MDKRewriteAPIURL')
   })
 
   it('patches only the dedicated AB bundle response and never user info', () => {
@@ -80,5 +105,23 @@ describe('runtime override diagnostics contract', () => {
     expect(ios).toContain('MDKIsAllowedAPIHost(request.URL.host')
     expect(protocol).toContain('MDKPatchABConfigResponse')
     expect(protocol).toContain('caseInsensitiveCompare:@"Content-Length"')
+  })
+
+  it('lets developers manage multiple AB experiment key/value rows without widening the mock match', () => {
+    const android = read('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt')
+    const ios = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
+    const overrides = read('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsOverrides.kt')
+    const iosOverrides = read('ios/Sources/MDKDiagnosticsOverrides.m')
+
+    expect(android).toContain('addABMockRow')
+    expect(android).toContain('removeABMockRow')
+    expect(android).toContain('current.values.entries')
+    expect(android).toContain('saveMockOverride(endpoint.identifier, enabled.isChecked, values)')
+    expect(ios).toContain('addABMockRowWithKey')
+    expect(ios).toContain('removeABMockRow:')
+    expect(ios).toContain('MDKSaveMockOverride')
+    expect(iosOverrides).toContain('trimmedKey')
+    expect(overrides).toContain('normalizeMockValues')
+    expect(overrides).toContain('values.forEach')
   })
 })

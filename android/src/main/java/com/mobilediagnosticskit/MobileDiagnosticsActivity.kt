@@ -646,51 +646,41 @@ class MobileDiagnosticsActivity : Activity() {
       })
     })
 
-    val valueEditor = EditText(this).apply {
-      setText(current.values[MobileDiagnosticsOverrides.SCREEN_RECOMMENDATION_KEY].orEmpty())
-      setSelection(text.length)
-      hint = getString(R.string.mobile_diagnostics_ab_value_placeholder)
-      textSize = 13f
-      setTextColor(PRIMARY_TEXT)
-      setHintTextColor(MUTED_TEXT)
-      setSingleLine(true)
-      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-      minimumHeight = dp(48)
-      setPadding(dp(13), dp(8), dp(13), dp(8))
-      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    val rows = mutableListOf<ABMockRowViews>()
+    val rowsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    fun showEmptyStateIfNeeded() {
+      if (rows.isEmpty() && rowsContainer.childCount == 0) {
+        rowsContainer.addView(emptyState(
+          getString(R.string.mobile_diagnostics_ab_empty_title),
+          getString(R.string.mobile_diagnostics_ab_empty_body),
+        ))
+      }
     }
+    current.values.entries.sortedBy { it.key }.forEach { (key, value) ->
+      addABMockRow(rowsContainer, rows, key, value)
+    }
+    showEmptyStateIfNeeded()
     scroll.column.addView(cardContainer(topMargin = 10).apply {
       addView(TextView(context).apply {
         text = getString(R.string.mobile_diagnostics_ab_key)
         textSize = 12f
         setTextColor(MUTED_TEXT)
       })
-      addView(TextView(context).apply {
-        text = MobileDiagnosticsOverrides.SCREEN_RECOMMENDATION_KEY
-        textSize = 12f
-        setTextColor(PRIMARY_TEXT)
-        typeface = Typeface.MONOSPACE
-        setTextIsSelectable(true)
-        setPadding(0, dp(5), 0, dp(10))
-      })
-      addView(valueEditor)
-      addView(LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        addView(actionButton("true") { valueEditor.setText("true") }, equalWeightParams(40).apply {
-          marginEnd = dp(4)
-        })
-        addView(actionButton("false") { valueEditor.setText("false") }, equalWeightParams(40).apply {
-          marginStart = dp(4)
-        })
+      addView(rowsContainer)
+      addView(actionButton(getString(R.string.mobile_diagnostics_ab_add)) {
+        if (rows.isEmpty()) rowsContainer.removeAllViews()
+        addABMockRow(rowsContainer, rows)
       }.withTopMargin(8))
     })
     scroll.column.addView(actionButton(
       getString(R.string.mobile_diagnostics_save),
       primary = true,
     ) {
-      val values = mapOf(
-        MobileDiagnosticsOverrides.SCREEN_RECOMMENDATION_KEY to valueEditor.text.toString(),
-      )
+      val values = linkedMapOf<String, String>()
+      rows.forEach { row ->
+        val key = row.keyEditor.text.toString().trim()
+        if (key.isNotEmpty()) values[key] = row.valueEditor.text.toString()
+      }
       if (MobileDiagnosticsOverrides.saveMockOverride(endpoint.identifier, enabled.isChecked, values)) {
         Toast.makeText(this, R.string.mobile_diagnostics_mock_saved, Toast.LENGTH_SHORT).show()
         renderDestination(DESTINATION_MOCKS)
@@ -703,6 +693,77 @@ class MobileDiagnosticsActivity : Activity() {
       getString(R.string.mobile_diagnostics_mock_behavior_body),
     ).withTopMargin(10))
     body.addView(scroll.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+  }
+
+  private fun addABMockRow(
+    container: LinearLayout,
+    rows: MutableList<ABMockRowViews>,
+    initialKey: String = "",
+    initialValue: String = "",
+  ) {
+    val keyEditor = EditText(this).apply {
+      setText(initialKey)
+      setSelection(text.length)
+      hint = getString(R.string.mobile_diagnostics_ab_key_placeholder)
+      textSize = 13f
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      setSingleLine(true)
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+      minimumHeight = dp(48)
+      setPadding(dp(13), dp(8), dp(13), dp(8))
+      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    }
+    val valueEditor = EditText(this).apply {
+      setText(initialValue)
+      setSelection(text.length)
+      hint = getString(R.string.mobile_diagnostics_ab_value_placeholder)
+      textSize = 13f
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      setSingleLine(true)
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+      minimumHeight = dp(48)
+      setPadding(dp(13), dp(8), dp(13), dp(8))
+      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    }
+    lateinit var row: ABMockRowViews
+    val remove = actionButton(getString(R.string.mobile_diagnostics_ab_remove), danger = true) {
+      removeABMockRow(row, container, rows)
+    }
+    val rowContainer = cardContainer(topMargin = 8).apply {
+      addView(keyEditor)
+      addView(valueEditor, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) })
+      addView(LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(actionButton("true") { valueEditor.setText("true") }, equalWeightParams(40).apply {
+          marginEnd = dp(4)
+        })
+        addView(actionButton("false") { valueEditor.setText("false") }, equalWeightParams(40).apply {
+          marginStart = dp(4)
+          marginEnd = dp(4)
+        })
+        addView(remove, equalWeightParams(40).apply { marginStart = dp(4) })
+      }.withTopMargin(8))
+    }
+    row = ABMockRowViews(rowContainer, keyEditor, valueEditor)
+    rows += row
+    container.addView(rowContainer)
+  }
+
+  private fun removeABMockRow(
+    row: ABMockRowViews,
+    container: LinearLayout,
+    rows: MutableList<ABMockRowViews>,
+  ) {
+    rows.remove(row)
+    container.removeView(row.container)
+    if (rows.isEmpty()) {
+      container.addView(emptyState(
+        getString(R.string.mobile_diagnostics_ab_empty_title),
+        getString(R.string.mobile_diagnostics_ab_empty_body),
+      ))
+    }
   }
 
   private fun renderNetwork() {
@@ -1919,6 +1980,12 @@ class MobileDiagnosticsActivity : Activity() {
   private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
   private data class ScrollColumn(val view: ScrollView, val column: LinearLayout)
+
+  private data class ABMockRowViews(
+    val container: View,
+    val keyEditor: EditText,
+    val valueEditor: EditText,
+  )
 
   private data class NetworkImagePreview(
     val bitmap: Bitmap,

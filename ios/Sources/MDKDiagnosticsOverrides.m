@@ -99,9 +99,21 @@ NSDictionary<NSString *, id> *MDKMockOverride(NSString *identifier) {
 BOOL MDKSaveMockOverride(NSString *identifier, BOOL enabled,
                          NSDictionary<NSString *, NSString *> *values) {
   NSMutableDictionary *root = [MDKMockRoot() mutableCopy];
+  NSMutableDictionary<NSString *, NSString *> *normalized = [NSMutableDictionary dictionary];
+  [values enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *value, BOOL *stop) {
+    (void)stop;
+    if (![key isKindOfClass:NSString.class] || ![value isKindOfClass:NSString.class]) {
+      return;
+    }
+    NSString *trimmedKey = [key stringByTrimmingCharactersInSet:
+        NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (trimmedKey.length > 0) {
+      normalized[trimmedKey] = value;
+    }
+  }];
   root[identifier] = @{
     @"enabled" : @(enabled),
-    @"values" : [values copy],
+    @"values" : [normalized copy],
   };
   [NSUserDefaults.standardUserDefaults setObject:root
                                            forKey:MDKMockOverridesDefaultsKey];

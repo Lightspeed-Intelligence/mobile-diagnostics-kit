@@ -122,15 +122,23 @@ object MobileDiagnosticsNativeNetwork {
   /** Adds passive capture once without allowing diagnostics setup to break client creation. */
   @JvmStatic
   fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also { target ->
+    installOverrides(target)
     runCatching {
       val interceptors = target.interceptors()
-      if (interceptors.none { it is MobileDiagnosticsOverrideInterceptor }) {
-        target.addInterceptor(MobileDiagnosticsOverrideInterceptor())
-      }
       val alreadyCaptured = interceptors.any {
         it is MobileDiagnosticsOkHttpInterceptor || it.javaClass.name == DOKIT_CAP_INTERCEPTOR
       }
       if (!alreadyCaptured) target.addInterceptor(MobileDiagnosticsOkHttpInterceptor())
+    }
+  }
+
+  /** Adds only runtime API/mock overrides for hosts that already provide capture. */
+  @JvmStatic
+  fun installOverrides(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also { target ->
+    runCatching {
+      if (target.interceptors().none { it is MobileDiagnosticsOverrideInterceptor }) {
+        target.addInterceptor(MobileDiagnosticsOverrideInterceptor())
+      }
     }
   }
 

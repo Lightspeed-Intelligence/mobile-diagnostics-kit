@@ -15,7 +15,7 @@
   <string name="mobile_diagnostics_api_security_body">Changes the origin for new Tipsy /api/v1, /api/v2, and future versioned API requests. OSS, CDN, analytics, and third-party requests are not changed.</string>
   <string name="mobile_diagnostics_api_current">Current override</string>
   <string name="mobile_diagnostics_api_default">Build default (no override)</string>
-  <string name="mobile_diagnostics_api_placeholder">https://branch.api.dev.fantacy.live/api/v2</string>
+  <string name="mobile_diagnostics_api_placeholder">https://branch.api.dev.fantacy.live</string>
   <string name="mobile_diagnostics_api_invalid">Use HTTPS with api.dev.fantacy.live, one of its subdomains, or exact api.tipsy.chat. Credentials, query, fragments, and nonstandard ports are not allowed.</string>
   <string name="mobile_diagnostics_api_saved">API environment saved. New requests use this environment.</string>
   <string name="mobile_diagnostics_api_scope_title">Path versions are preserved</string>
@@ -26,11 +26,16 @@
   <string name="mobile_diagnostics_ab_mock_description">Override selected values returned by the dedicated AB config bundle interface.</string>
   <string name="mobile_diagnostics_mock_back">Back to interface list</string>
   <string name="mobile_diagnostics_mock_enable">Enable this interface mock</string>
-  <string name="mobile_diagnostics_ab_key">Experiment key</string>
+  <string name="mobile_diagnostics_ab_key">Experiment overrides</string>
+  <string name="mobile_diagnostics_ab_key_placeholder">Experiment key, for example enable_recsys_in_home_show_case</string>
   <string name="mobile_diagnostics_ab_value_placeholder">Experiment value</string>
+  <string name="mobile_diagnostics_ab_add">Add experiment</string>
+  <string name="mobile_diagnostics_ab_remove">Remove</string>
+  <string name="mobile_diagnostics_ab_empty_title">No experiment overrides</string>
+  <string name="mobile_diagnostics_ab_empty_body">Add one or more key/value pairs to override the dedicated AB response.</string>
   <string name="mobile_diagnostics_mock_saved">Interface mock saved.</string>
   <string name="mobile_diagnostics_mock_behavior_title">Merge behavior</string>
-  <string name="mobile_diagnostics_mock_behavior_body">The selected value is merged into data.configs after a valid server response. Unselected experiments and all other response fields remain unchanged.</string>
+  <string name="mobile_diagnostics_mock_behavior_body">Configured values are merged into data.configs after a valid server response. Other experiments and response fields remain unchanged.</string>
   <string name="mobile_diagnostics_back">Back</string>
   <string name="mobile_diagnostics_clear">Clear requests</string>
   <string name="mobile_diagnostics_check_update">Check and apply update</string>

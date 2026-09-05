@@ -374,8 +374,12 @@ static BOOL MDKRemoveStorageEntry(NSDictionary<NSString *, NSString *> *entry) {
 }
 
 static NSString *MDKNetworkURL(DoraemonNetFlowHttpModel *model) {
-  return model.url.length > 0 ? model.url
-                              : model.request.URL.absoluteString ?: @"";
+  NSURL *recordedURL = model.request.URL;
+  if (recordedURL == nil && model.url.length > 0) {
+    recordedURL = [NSURL URLWithString:model.url];
+  }
+  NSURL *effectiveURL = recordedURL == nil ? nil : MDKRewriteAPIURL(recordedURL);
+  return effectiveURL.absoluteString ?: model.url ?: @"";
 }
 
 static NSString *MDKNetworkMethod(DoraemonNetFlowHttpModel *model) {
@@ -576,7 +580,9 @@ static UIViewController *MDKApplicationTopViewController(void) {
   UITextField *_apiBaseField;
   NSString *_selectedMockIdentifier;
   UISwitch *_abMockSwitch;
-  UITextField *_abMockValueField;
+  NSMutableArray<NSDictionary<NSString *, id> *> *_abMockRows;
+  UIStackView *_abMockRowsStack;
+  UIView *_abMockEmptyState;
 }
 
 - (instancetype)initWithDestination:(MDKDiagnosticsDestination)destination {
@@ -751,7 +757,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_content addArrangedSubview:current];
 
   _apiBaseField = [self searchFieldWithPlaceholder:
-      @"https://branch.api.dev.fantacy.live/api/v2"];
+      @"https://branch.api.dev.fantacy.live"];
   _apiBaseField.text = saved ?: @"";
   _apiBaseField.keyboardType = UIKeyboardTypeURL;
   _apiBaseField.accessibilityLabel = MDKText(@"API base URL", @"API 地址");
@@ -910,36 +916,29 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [summary addArrangedSubview:top];
   [_content addArrangedSubview:summary];
 
+  _abMockRows = [NSMutableArray array];
+  _abMockEmptyState = nil;
   UIStackView *valueCard = [self cardWithColor:MDKCardColor() radius:12.0];
-  UILabel *keyTitle = [self labelWithText:MDKText(@"Experiment key", @"实验键")];
+  UILabel *keyTitle = [self labelWithText:MDKText(@"Experiment overrides", @"实验覆盖")];
   keyTitle.font = [UIFont systemFontOfSize:12.0];
   keyTitle.textColor = MDKMutedTextColor();
-  UILabel *key = [self labelWithText:MDKScreenRecommendationKey];
-  key.font = MDKMonoFont(12.0, UIFontWeightRegular);
-  key.accessibilityLabel = MDKScreenRecommendationKey;
   [valueCard addArrangedSubview:keyTitle];
-  [valueCard addArrangedSubview:key];
-  _abMockValueField = [self searchFieldWithPlaceholder:
-      MDKText(@"Experiment value", @"实验值")];
-  id savedValue = values[MDKScreenRecommendationKey];
-  _abMockValueField.text = [savedValue isKindOfClass:NSString.class] ? savedValue : @"";
-  _abMockValueField.accessibilityLabel = MDKText(@"Experiment value", @"实验值");
-  [valueCard addArrangedSubview:_abMockValueField];
-  UIStackView *presets = [[UIStackView alloc] init];
-  presets.axis = UILayoutConstraintAxisHorizontal;
-  presets.distribution = UIStackViewDistributionFillEqually;
-  presets.spacing = 8.0;
-  UIButton *trueButton = [self secondaryButtonWithTitle:@"true"];
-  [trueButton addTarget:self
-                    action:@selector(setABPresetTrue)
-          forControlEvents:UIControlEventTouchUpInside];
-  UIButton *falseButton = [self secondaryButtonWithTitle:@"false"];
-  [falseButton addTarget:self
-                     action:@selector(setABPresetFalse)
-           forControlEvents:UIControlEventTouchUpInside];
-  [presets addArrangedSubview:trueButton];
-  [presets addArrangedSubview:falseButton];
-  [valueCard addArrangedSubview:presets];
+  _abMockRowsStack = [[UIStackView alloc] init];
+  _abMockRowsStack.axis = UILayoutConstraintAxisVertical;
+  _abMockRowsStack.spacing = 8.0;
+  [valueCard addArrangedSubview:_abMockRowsStack];
+  for (NSString *key in [values.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+    id savedValue = values[key];
+    [self addABMockRowWithKey:key
+                         value:([savedValue isKindOfClass:NSString.class] ? savedValue : @"")];
+  }
+  [self refreshABMockEmptyState];
+  UIButton *add = [self secondaryButtonWithTitle:
+      MDKText(@"Add experiment", @"添加实验")];
+  [add addTarget:self
+               action:@selector(addABMockRow:)
+     forControlEvents:UIControlEventTouchUpInside];
+  [valueCard addArrangedSubview:add];
   [_content addArrangedSubview:valueCard];
 
   UIButton *save = [self primaryButtonWithTitle:MDKText(@"Save", @"保存")];
@@ -950,8 +949,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_content addArrangedSubview:[self
       infoCardWithTitle:MDKText(@"Merge behavior", @"合并规则")
                    value:MDKText(
-                       @"The selected value is merged into data.configs after a valid server response. Unselected experiments and all other response fields remain unchanged.",
-                       @"服务端响应合法时，仅把选定值合并进 data.configs。未选择的实验和其他响应字段保持不变。")]];
+                       @"Configured values are merged into data.configs after a valid server response. Other experiments and response fields remain unchanged.",
+                       @"服务端响应合法时，将配置的实验值合并进 data.configs。其他实验和响应字段保持不变。")]];
 }
 
 - (void)backToMockList {
@@ -959,18 +958,124 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [self renderDestination];
 }
 
-- (void)setABPresetTrue {
-  _abMockValueField.text = @"true";
+- (void)addABMockRow:(UIButton *)sender {
+  (void)sender;
+  [self addABMockRowWithKey:@"" value:@""];
+  [self refreshABMockEmptyState];
 }
 
-- (void)setABPresetFalse {
-  _abMockValueField.text = @"false";
+- (void)addABMockRowWithKey:(NSString *)key value:(NSString *)value {
+  UITextField *keyField = [self searchFieldWithPlaceholder:
+      MDKText(@"Experiment key, for example enable_recsys_in_home_show_case",
+              @"实验键，例如 enable_recsys_in_home_show_case")];
+  keyField.text = key ?: @"";
+  keyField.accessibilityLabel = MDKText(@"Experiment key", @"实验键");
+  UITextField *valueField = [self searchFieldWithPlaceholder:
+      MDKText(@"Experiment value", @"实验值")];
+  valueField.text = value ?: @"";
+  valueField.accessibilityLabel = MDKText(@"Experiment value", @"实验值");
+
+  UIStackView *row = [self cardWithColor:MDKBackgroundColor() radius:9.0];
+  [row addArrangedSubview:keyField];
+  [row addArrangedSubview:valueField];
+  UIStackView *presets = [[UIStackView alloc] init];
+  presets.axis = UILayoutConstraintAxisHorizontal;
+  presets.distribution = UIStackViewDistributionFillEqually;
+  presets.spacing = 8.0;
+  UIButton *trueButton = [self secondaryButtonWithTitle:@"true"];
+  [trueButton addTarget:self
+                    action:@selector(setABPresetTrue:)
+          forControlEvents:UIControlEventTouchUpInside];
+  UIButton *falseButton = [self secondaryButtonWithTitle:@"false"];
+  [falseButton addTarget:self
+                    action:@selector(setABPresetFalse:)
+          forControlEvents:UIControlEventTouchUpInside];
+  UIButton *remove = [self secondaryButtonWithTitle:MDKText(@"Remove", @"删除")];
+  [remove addTarget:self
+             action:@selector(removeABMockRow:)
+   forControlEvents:UIControlEventTouchUpInside];
+  [presets addArrangedSubview:trueButton];
+  [presets addArrangedSubview:falseButton];
+  [presets addArrangedSubview:remove];
+  [row addArrangedSubview:presets];
+  [_abMockRows addObject:@{
+    @"card" : row,
+    @"key" : keyField,
+    @"value" : valueField,
+    @"trueButton" : trueButton,
+    @"falseButton" : falseButton,
+    @"remove" : remove,
+  }];
+  [_abMockRowsStack addArrangedSubview:row];
+}
+
+- (void)refreshABMockEmptyState {
+  if (_abMockRows.count == 0) {
+    if (_abMockEmptyState == nil) {
+      _abMockEmptyState = [self emptyStateWithTitle:
+          MDKText(@"No experiment overrides", @"暂无实验覆盖")
+                                body:MDKText(
+                                    @"Add one or more key/value pairs to override the dedicated AB response.",
+                                    @"添加一个或多个键值对，覆盖独立 AB 接口的返回值。")];
+      [_abMockRowsStack addArrangedSubview:_abMockEmptyState];
+    }
+  } else if (_abMockEmptyState != nil) {
+    [_abMockRowsStack removeArrangedSubview:_abMockEmptyState];
+    [_abMockEmptyState removeFromSuperview];
+    _abMockEmptyState = nil;
+  }
+}
+
+- (NSDictionary<NSString *, id> *)abMockRowForPresetButton:(UIButton *)sender {
+  for (NSDictionary<NSString *, id> *row in _abMockRows) {
+    if (row[@"trueButton"] == sender || row[@"falseButton"] == sender) {
+      return row;
+    }
+  }
+  return nil;
+}
+
+- (void)setABPresetTrue:(UIButton *)sender {
+  UITextField *valueField = [self abMockRowForPresetButton:sender][@"value"];
+  valueField.text = @"true";
+}
+
+- (void)setABPresetFalse:(UIButton *)sender {
+  UITextField *valueField = [self abMockRowForPresetButton:sender][@"value"];
+  valueField.text = @"false";
+}
+
+- (void)removeABMockRow:(UIButton *)sender {
+  NSDictionary<NSString *, id> *target = [self abMockRowForPresetButton:sender];
+  if (target == nil) {
+    for (NSDictionary<NSString *, id> *row in _abMockRows) {
+      if (row[@"remove"] == sender) {
+        target = row;
+        break;
+      }
+    }
+  }
+  if (target == nil) {
+    return;
+  }
+  [_abMockRows removeObject:target];
+  [_abMockRowsStack removeArrangedSubview:target[@"card"]];
+  [target[@"card"] removeFromSuperview];
+  [self refreshABMockEmptyState];
 }
 
 - (void)saveABMock {
+  NSMutableDictionary<NSString *, NSString *> *values = [NSMutableDictionary dictionary];
+  for (NSDictionary<NSString *, id> *row in _abMockRows) {
+    UITextField *keyField = row[@"key"];
+    NSString *key = [keyField.text stringByTrimmingCharactersInSet:
+        NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (key.length > 0) {
+      values[key] = [row[@"value"] text] ?: @"";
+    }
+  }
   MDKSaveMockOverride(
-      MDKABConfigMockIdentifier, _abMockSwitch.isOn,
-      @{ MDKScreenRecommendationKey : _abMockValueField.text ?: @"" });
+      MDKABConfigMockIdentifier, _abMockSwitch.isOn, values);
   [self renderDestination];
 }
 

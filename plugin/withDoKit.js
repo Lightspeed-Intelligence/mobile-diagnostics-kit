@@ -16,6 +16,7 @@ const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.kit.network.NetworkManager',
   'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
   'import com.mobilediagnosticskit.MobileDiagnosticsImageInterceptor',
+  'import com.mobilediagnosticskit.MobileDiagnosticsNativeNetwork',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
 const DOKIT_INIT_MARKER = 'customKits(MobileDiagnosticsDoKit.kits(this))'
@@ -109,10 +110,13 @@ function addImport(contents, importLine) {
 
 function addDoKitToMainApplication(contents) {
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
-  const next = addImageInterceptor(
-    DOKIT_IMPORTS.reduce(addImport, contents)
-      .replaceAll(LEGACY_NETWORK_KIT_CLEANUP, BUILT_IN_KIT_CLEANUP)
-      .replaceAll(LEGACY_DOKIT_INIT_MARKER, DOKIT_INIT_MARKER),
+  const next = addOverrideInstaller(
+    addImageInterceptor(
+      DOKIT_IMPORTS.reduce(addImport, contents)
+        .replaceAll(LEGACY_NETWORK_KIT_CLEANUP, BUILT_IN_KIT_CLEANUP)
+        .replaceAll(LEGACY_DOKIT_INIT_MARKER, DOKIT_INIT_MARKER),
+      eol
+    ),
     eol
   )
   if (next.includes(DOKIT_INIT_MARKER)) {
@@ -148,7 +152,9 @@ function addDoKitToMainApplication(contents) {
     `${indent}DokitPluginConfig.SWITCH_NETWORK = true`,
     renderDoKitInitialization(indent, eol),
     `${indent}OkHttpClientProvider.setOkHttpClientFactory {`,
-    `${indent}  OkHttpClientProvider.createClientBuilder(this)`,
+    `${indent}  MobileDiagnosticsNativeNetwork.installOverrides(`,
+    `${indent}    OkHttpClientProvider.createClientBuilder(this),`,
+    `${indent}  )`,
     `${indent}    .addInterceptor(MobileDiagnosticsImageInterceptor())`,
     `${indent}    .addInterceptor(DokitCapInterceptor())`,
     `${indent}    .build()`,
@@ -172,6 +178,19 @@ function addImageInterceptor(contents, eol) {
   const lineStart = contents.lastIndexOf(eol, doKitIndex) + eol.length
   const indent = contents.slice(lineStart, doKitIndex)
   return `${contents.slice(0, lineStart)}${indent}${imageInterceptor}${eol}${contents.slice(lineStart)}`
+}
+
+function addOverrideInstaller(contents, eol) {
+  const installer = 'MobileDiagnosticsNativeNetwork.installOverrides('
+  if (contents.includes(installer)) return contents
+
+  const marker = 'OkHttpClientProvider.createClientBuilder(this)'
+  const markerIndex = contents.indexOf(marker)
+  if (markerIndex < 0) return contents
+
+  const lineStart = contents.lastIndexOf(eol, markerIndex) + eol.length
+  const indent = contents.slice(lineStart, markerIndex)
+  return `${contents.slice(0, lineStart)}${indent}${installer}${eol}${indent}  ${marker},${eol}${indent})${contents.slice(markerIndex + marker.length)}`
 }
 
 function addMobileDiagnosticsNetworkPackage(contents, eol) {

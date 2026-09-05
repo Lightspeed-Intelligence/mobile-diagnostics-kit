@@ -112,7 +112,9 @@ internal object MobileDiagnosticsDoKit {
       .build()
     DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
     OkHttpClientProvider.setOkHttpClientFactory {
-      OkHttpClientProvider.createClientBuilder(application)
+      MobileDiagnosticsNativeNetwork.installOverrides(
+        OkHttpClientProvider.createClientBuilder(application),
+      )
         .addInterceptor(MobileDiagnosticsImageInterceptor())
         .addInterceptor(DokitCapInterceptor())
         .build()

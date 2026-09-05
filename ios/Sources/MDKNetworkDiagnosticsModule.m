@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+#import "MDKDiagnosticsOverrides.h"
+
 #import <DoraemonKit/DoraemonCacheManager.h>
 #import <DoraemonKit/DoraemonNetFlowDataSource.h>
 #import <DoraemonKit/DoraemonNetFlowHttpModel.h>
@@ -38,8 +40,13 @@ static BOOL MDKNetworkIsTextMIMEType(NSString *mimeType) {
 
 static NSDictionary *
 MDKNetworkSnapshot(DoraemonNetFlowHttpModel *model) {
-  NSString *url = model.url.length > 0 ? model.url
-                                        : model.request.URL.absoluteString;
+  NSURL *recordedURL = model.request.URL;
+  if (recordedURL == nil && model.url.length > 0) {
+    recordedURL = [NSURL URLWithString:model.url];
+  }
+  NSURL *effectiveURL = recordedURL == nil ? nil : MDKRewriteAPIURL(recordedURL);
+  NSString *url = effectiveURL.absoluteString ?: model.url
+                                                  ?: model.request.URL.absoluteString;
   NSURLComponents *components =
       [NSURLComponents componentsWithString:url ?: @""];
   NSString *path = components.percentEncodedPath.length > 0

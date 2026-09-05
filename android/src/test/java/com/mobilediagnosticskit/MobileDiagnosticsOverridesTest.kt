@@ -8,6 +8,20 @@ import org.junit.Test
 
 class MobileDiagnosticsOverridesTest {
   @Test
+  fun normalizeMockValues_filtersBlankKeysAndKeepsUserDefinedExperiments() {
+    assertEquals(
+      mapOf("experiment_a" to "true", "experiment_b" to "variant-2"),
+      MobileDiagnosticsOverrides.normalizeMockValues(
+        mapOf(
+          " experiment_a " to "true",
+          "experiment_b" to "variant-2",
+          "   " to "discarded",
+        ),
+      ),
+    )
+  }
+
+  @Test
   fun canonicalApiBaseUrl_acceptsOnlyApprovedTipsyOrigins() {
     assertEquals(
       "https://branch.api.dev.fantacy.live",
@@ -70,7 +84,10 @@ class MobileDiagnosticsOverridesTest {
       original,
       MobileDiagnosticsMockOverride(
         enabled = true,
-        values = mapOf("enable_recsys_in_home_show_case" to "true"),
+        values = mapOf(
+          "enable_recsys_in_home_show_case" to "true",
+          "home_feed_variant" to "variant-2",
+        ),
       ),
     ) ?: error("Expected a patched response")
     val json = JSONObject(patched.toString(Charsets.UTF_8))
@@ -82,6 +99,10 @@ class MobileDiagnosticsOverridesTest {
       "true",
       json.getJSONObject("data").getJSONObject("configs")
         .getString("enable_recsys_in_home_show_case"),
+    )
+    assertEquals(
+      "variant-2",
+      json.getJSONObject("data").getJSONObject("configs").getString("home_feed_variant"),
     )
   }
 
