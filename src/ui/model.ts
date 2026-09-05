@@ -67,6 +67,9 @@ export interface DiagnosticsLabels {
   networkRequests: string
   networkErrors: string
   networkReceived: string
+  networkSortOrder: string
+  networkSortAscending: string
+  networkSortDescending: string
   networkShowing: (visible: number, total: number) => string
   networkEmptyTitle: string
   networkEmptyBody: string
@@ -155,6 +158,9 @@ export const DEFAULT_LABELS: DiagnosticsLabels = {
   networkRequests: 'Requests',
   networkErrors: 'Errors',
   networkReceived: 'Received',
+  networkSortOrder: 'Sort order',
+  networkSortAscending: 'Oldest first',
+  networkSortDescending: 'Newest first',
   networkShowing: (visible, total) => `Showing ${visible} of ${total}`,
   networkEmptyTitle: 'No requests captured',
   networkEmptyBody: 'Use the app, then return here to inspect requests.',
@@ -241,6 +247,9 @@ export const SIMPLIFIED_CHINESE_LABELS: DiagnosticsLabels = {
   networkRequests: '请求',
   networkErrors: '错误',
   networkReceived: '已接收',
+  networkSortOrder: '排序',
+  networkSortAscending: '时间正序',
+  networkSortDescending: '时间倒序',
   networkShowing: (visible, total) => `显示 ${visible}/${total} 条`,
   networkEmptyTitle: '尚未捕获请求',
   networkEmptyBody: '请先操作应用，再返回这里查看请求。',
