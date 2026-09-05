@@ -18,6 +18,8 @@ FOUNDATION_EXPORT NSDictionary<NSString *, id> *MDKMockOverride(NSString *identi
 FOUNDATION_EXPORT BOOL MDKSaveMockOverride(
     NSString *identifier, BOOL enabled,
     NSDictionary<NSString *, NSString *> *values);
+FOUNDATION_EXPORT BOOL MDKClearAllMockOverrides(void);
+FOUNDATION_EXPORT BOOL MDKIsABConfigRequest(NSURLRequest *request);
 FOUNDATION_EXPORT BOOL MDKShouldMockABConfigRequest(NSURLRequest *request);
 FOUNDATION_EXPORT NSData *_Nullable MDKPatchABConfigResponse(
     NSURLRequest *request, NSData *body);

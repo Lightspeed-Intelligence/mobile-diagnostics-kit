@@ -14,8 +14,10 @@ import {
   filterNetworkRequests,
   formatBytes,
   isNetworkError,
+  sortNetworkRequests,
   type NetworkFilter,
   type NetworkRequestSnapshot,
+  type NetworkSortOrder,
 } from '../networkDiagnostics'
 import {
   nativeNetworkDiagnostics,
@@ -37,19 +39,29 @@ const FILTERS: readonly NetworkFilter[] = [
 
 interface NetworkPanelProps {
   client?: NetworkDiagnosticsClient
+  filter: NetworkFilter
   labels: DiagnosticsLabels
+  onFilterChange: (filter: NetworkFilter) => void
+  onQueryChange: (query: string) => void
+  onSortOrderChange: (order: NetworkSortOrder) => void
+  query: string
+  sortOrder: NetworkSortOrder
   testIDPrefix: string
 }
 
 export function NetworkPanel({
   client = nativeNetworkDiagnostics,
+  filter,
   labels,
+  onFilterChange,
+  onQueryChange,
+  onSortOrderChange,
+  query,
+  sortOrder,
   testIDPrefix,
 }: NetworkPanelProps) {
   const [captureEnabled, setCaptureEnabled] = useState(false)
   const [error, setError] = useState('')
-  const [filter, setFilter] = useState<NetworkFilter>('all')
-  const [query, setQuery] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [requests, setRequests] = useState<NetworkRequestSnapshot[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -82,9 +94,13 @@ export function NetworkPanel({
     return () => clearInterval(timer)
   }, [refresh])
 
+  const orderedRequests = useMemo(
+    () => sortNetworkRequests(requests, sortOrder),
+    [requests, sortOrder]
+  )
   const filtered = useMemo(
-    () => filterNetworkRequests(requests, filter, query),
-    [filter, query, requests]
+    () => filterNetworkRequests(orderedRequests, filter, query),
+    [filter, orderedRequests, query]
   )
   const selected = requests.find(({ id }) => id === selectedId) ?? null
   const errorCount = requests.filter(isNetworkError).length
@@ -203,11 +219,30 @@ export function NetworkPanel({
         </Pressable>
       </View>
 
+      <View style={styles.sortControl}>
+        <Text style={styles.sortLabel}>{labels.networkSortOrder}</Text>
+        <Switch
+          accessibilityLabel={labels.networkSortOrder}
+          onValueChange={(ascending) =>
+            onSortOrderChange(ascending ? 'ascending' : 'descending')
+          }
+          testID={`${testIDPrefix}.network.sortSwitch`}
+          thumbColor="#FFFFFF"
+          trackColor={{ false: networkColors.border, true: networkColors.accent }}
+          value={sortOrder === 'ascending'}
+        />
+        <Text style={styles.sortLabel}>
+          {sortOrder === 'ascending'
+            ? labels.networkSortAscending
+            : labels.networkSortDescending}
+        </Text>
+      </View>
+
       <TextInput
         accessibilityLabel={labels.networkSearchPlaceholder}
         autoCapitalize="none"
         autoCorrect={false}
-        onChangeText={setQuery}
+        onChangeText={onQueryChange}
         placeholder={labels.networkSearchPlaceholder}
         placeholderTextColor={networkColors.muted}
         style={styles.searchInput}
@@ -228,7 +263,7 @@ export function NetworkPanel({
             accessibilityRole="tab"
             accessibilityState={{ selected: option === filter }}
             key={option}
-            onPress={() => setFilter(option)}
+            onPress={() => onFilterChange(option)}
             style={({ pressed }) => [
               styles.filterButton,
               option === filter && styles.filterButtonActive,

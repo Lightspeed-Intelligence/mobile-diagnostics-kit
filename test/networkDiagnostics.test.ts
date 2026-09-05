@@ -3,6 +3,7 @@ import {
   filterNetworkRequests,
   formatNetworkBody,
   networkResourceType,
+  sortNetworkRequests,
   type NetworkRequestSnapshot,
 } from '../src/networkDiagnostics'
 
@@ -31,6 +32,31 @@ function request(
 }
 
 describe('network diagnostics model', () => {
+  it('sorts requests chronologically by default without mutating the input', () => {
+    const requests = [
+      request({ id: 'newer', startTime: 1_700_000_000_200 }),
+      request({ id: 'older', startTime: 1_700_000_000_100 }),
+    ]
+
+    expect(sortNetworkRequests(requests).map(({ id }) => id)).toEqual([
+      'older',
+      'newer',
+    ])
+    expect(requests.map(({ id }) => id)).toEqual(['newer', 'older'])
+  })
+
+  it('supports reverse chronological order', () => {
+    const requests = [
+      request({ id: 'older', startTime: 1_700_000_000_100 }),
+      request({ id: 'newer', startTime: 1_700_000_000_200 }),
+    ]
+
+    expect(sortNetworkRequests(requests, 'descending').map(({ id }) => id)).toEqual([
+      'newer',
+      'older',
+    ])
+  })
+
   it('classifies response media before HTTP method semantics', () => {
     expect(
       networkResourceType(

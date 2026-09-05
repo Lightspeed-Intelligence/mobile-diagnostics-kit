@@ -22,6 +22,28 @@ class MobileDiagnosticsOverridesTest {
   }
 
   @Test
+  fun parseABConfigValues_readsStringAndPrimitiveExperimentValues() {
+    assertEquals(
+      mapOf(
+        "existing" to "keep",
+        "enabled" to "true",
+        "ratio" to "0.75",
+      ),
+      MobileDiagnosticsOverrides.parseABConfigValues(
+        """
+          {"data":{"configs":{"existing":"keep","enabled":true,"ratio":0.75,"ignored":null}}}
+        """.trimIndent(),
+      ),
+    )
+  }
+
+  @Test
+  fun parseABConfigValues_returnsNullWhenResponseHasNoConfigs() {
+    assertNull(MobileDiagnosticsOverrides.parseABConfigValues("{\"data\":{}}"))
+    assertNull(MobileDiagnosticsOverrides.parseABConfigValues("not-json"))
+  }
+
+  @Test
   fun canonicalApiBaseUrl_acceptsOnlyApprovedTipsyOrigins() {
     assertEquals(
       "https://branch.api.dev.fantacy.live",

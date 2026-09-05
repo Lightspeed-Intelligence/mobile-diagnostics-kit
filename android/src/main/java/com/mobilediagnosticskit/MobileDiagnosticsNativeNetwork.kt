@@ -1,5 +1,6 @@
 package com.mobilediagnosticskit
 
+import android.net.Uri
 import com.didichuxing.doraemonkit.kit.network.NetworkManager
 import com.didichuxing.doraemonkit.kit.network.bean.NetworkRecord
 import com.didichuxing.doraemonkit.kit.network.bean.Request as DoKitRequest
@@ -28,6 +29,23 @@ data class MobileDiagnosticsHttpExchange(
 
 /** Passive capture entry point for Android networking implemented outside React Native. */
 object MobileDiagnosticsNativeNetwork {
+  /** Returns the newest captured first-party AB response, if one has a readable configs object. */
+  fun latestABConfigValues(): Map<String, String>? = runCatching {
+    val records = NetworkManager.get().records
+    val snapshot = synchronized(records) { records.toList().asReversed() }
+    for (record in snapshot) {
+      val request = record.mRequest ?: continue
+      val uri = Uri.parse(request.url.orEmpty())
+      if (!request.method.equals("POST", ignoreCase = true) ||
+        uri.encodedPath != MobileDiagnosticsOverrides.AB_CONFIG_PATH ||
+        !MobileDiagnosticsOverrides.isAllowedApiHost(uri.host.orEmpty())
+      ) continue
+      val body = record.mResponseBody?.takeIf { it.isNotBlank() } ?: continue
+      MobileDiagnosticsOverrides.parseABConfigValues(body)?.let { return@runCatching it }
+    }
+    null
+  }.getOrNull()
+
   /** Records an already-completed exchange without changing its result or throwing to the caller. */
   @JvmStatic
   fun record(exchange: MobileDiagnosticsHttpExchange) {

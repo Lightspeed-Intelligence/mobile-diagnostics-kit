@@ -802,6 +802,55 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [self renderDestination];
 }
 
+static NSDictionary<NSString *, NSString *> *MDKLatestABConfigValues(void) {
+  NSArray<DoraemonNetFlowHttpModel *> *models =
+      [[DoraemonNetFlowDataSource shareInstance].httpModelArray copy];
+  for (DoraemonNetFlowHttpModel *model in [models reverseObjectEnumerator]) {
+    NSURL *url = model.request.URL;
+    if (url == nil && model.url.length > 0) {
+      url = [NSURL URLWithString:model.url];
+    }
+    if (url == nil) {
+      continue;
+    }
+    NSMutableURLRequest *request = [model.request mutableCopy];
+    if (request == nil) {
+      request = [NSMutableURLRequest requestWithURL:url];
+      request.HTTPMethod = model.method;
+    }
+    if (!MDKIsABConfigRequest(request)) {
+      continue;
+    }
+
+    NSData *body = [model.responseBody dataUsingEncoding:NSUTF8StringEncoding];
+    if (body.length == 0) {
+      body = model.responseData;
+    }
+    if (body.length == 0) {
+      continue;
+    }
+    NSDictionary *root = [NSJSONSerialization JSONObjectWithData:body options:0 error:nil];
+    NSDictionary *data = [root isKindOfClass:NSDictionary.class] ? root[@"data"] : nil;
+    NSDictionary *configs = [data isKindOfClass:NSDictionary.class] ? data[@"configs"] : nil;
+    if (![configs isKindOfClass:NSDictionary.class]) {
+      continue;
+    }
+    NSMutableDictionary<NSString *, NSString *> *values = [NSMutableDictionary dictionary];
+    [configs enumerateKeysAndObjectsUsingBlock:^(id key, id value, __unused BOOL *stop) {
+      if (![key isKindOfClass:NSString.class]) {
+        return;
+      }
+      if ([value isKindOfClass:NSString.class]) {
+        values[key] = value;
+      } else if ([value isKindOfClass:NSNumber.class]) {
+        values[key] = [value stringValue];
+      }
+    }];
+    return [values copy];
+  }
+  return nil;
+}
+
 #pragma mark - Interface mocks
 
 - (void)renderInterfaceMocks {
@@ -888,9 +937,13 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [_content addArrangedSubview:back];
 
   NSDictionary *override = MDKMockOverride(MDKABConfigMockIdentifier);
-  NSDictionary *values = [override[@"values"] isKindOfClass:NSDictionary.class]
-                             ? override[@"values"]
-                             : @{};
+  NSDictionary *savedValues = [override[@"values"] isKindOfClass:NSDictionary.class]
+                                   ? override[@"values"]
+                                   : @{};
+  NSDictionary *latestValues = MDKLatestABConfigValues();
+  NSMutableDictionary *values = [NSMutableDictionary dictionaryWithDictionary:
+      latestValues ?: @{}];
+  [values addEntriesFromDictionary:savedValues];
   UIStackView *summary = [self cardWithColor:MDKCardColor() radius:12.0];
   UIStackView *top = [[UIStackView alloc] init];
   top.axis = UILayoutConstraintAxisHorizontal;
@@ -916,6 +969,21 @@ static UIViewController *MDKApplicationTopViewController(void) {
   [summary addArrangedSubview:top];
   [_content addArrangedSubview:summary];
 
+  [_content addArrangedSubview:[self
+      infoCardWithTitle:MDKText(@"Latest server response", @"最近一次服务端响应")
+                   value:(latestValues == nil
+                              ? MDKText(@"Capture an AB response or add a key below.",
+                                        @"请先捕获 AB 响应，或在下方添加 key。")
+                              : MDKText(
+                                    @"Keys from the newest captured AB response are shown below. Change a value and save to mock it; you can also add a new key.",
+                                    @"下方已列出最近一次捕获的 AB 响应中的 key。修改 value 后保存即可 Mock，也可以继续添加新 key。"))]];
+  UIButton *refresh = [self secondaryButtonWithTitle:
+      MDKText(@"Refresh from latest response", @"从最近响应刷新")];
+  [refresh addTarget:self
+              action:@selector(refreshABMockDetails)
+    forControlEvents:UIControlEventTouchUpInside];
+  [_content addArrangedSubview:refresh];
+
   _abMockRows = [NSMutableArray array];
   _abMockEmptyState = nil;
   UIStackView *valueCard = [self cardWithColor:MDKCardColor() radius:12.0];
@@ -930,7 +998,11 @@ static UIViewController *MDKApplicationTopViewController(void) {
   for (NSString *key in [values.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
     id savedValue = values[key];
     [self addABMockRowWithKey:key
-                         value:([savedValue isKindOfClass:NSString.class] ? savedValue : @"")];
+                         value:([savedValue isKindOfClass:NSString.class] ? savedValue : @"")
+                 serverValues:latestValues ?: @{}
+              hasServerSnapshot:(latestValues != nil)
+                       persisted:[savedValues isKindOfClass:NSString.class] &&
+                                   savedValues[key] != nil];
   }
   [self refreshABMockEmptyState];
   UIButton *add = [self secondaryButtonWithTitle:
@@ -946,11 +1018,22 @@ static UIViewController *MDKApplicationTopViewController(void) {
                 action:@selector(saveABMock)
       forControlEvents:UIControlEventTouchUpInside];
   [_content addArrangedSubview:save];
+  UIButton *clear = [self secondaryButtonWithTitle:
+      MDKText(@"Clear all experiment mocks", @"清理全部实验 Mock")];
+  [clear setTitleColor:MDKDangerColor() forState:UIControlStateNormal];
+  [clear addTarget:self
+            action:@selector(clearAllABMocks:)
+  forControlEvents:UIControlEventTouchUpInside];
+  [_content addArrangedSubview:clear];
   [_content addArrangedSubview:[self
       infoCardWithTitle:MDKText(@"Merge behavior", @"合并规则")
                    value:MDKText(
                        @"Configured values are merged into data.configs after a valid server response. Other experiments and response fields remain unchanged.",
                        @"服务端响应合法时，将配置的实验值合并进 data.configs。其他实验和响应字段保持不变。")]];
+}
+
+- (void)refreshABMockDetails {
+  [self renderDestination];
 }
 
 - (void)backToMockList {
@@ -960,11 +1043,20 @@ static UIViewController *MDKApplicationTopViewController(void) {
 
 - (void)addABMockRow:(UIButton *)sender {
   (void)sender;
-  [self addABMockRowWithKey:@"" value:@""];
+  NSDictionary *latestValues = MDKLatestABConfigValues();
+  [self addABMockRowWithKey:@""
+                       value:@""
+                serverValues:latestValues ?: @{}
+             hasServerSnapshot:(latestValues != nil)
+                      persisted:NO];
   [self refreshABMockEmptyState];
 }
 
-- (void)addABMockRowWithKey:(NSString *)key value:(NSString *)value {
+- (void)addABMockRowWithKey:(NSString *)key
+                      value:(NSString *)value
+               serverValues:(NSDictionary<NSString *, NSString *> *)serverValues
+            hasServerSnapshot:(BOOL)hasServerSnapshot
+                     persisted:(BOOL)persisted {
   UITextField *keyField = [self searchFieldWithPlaceholder:
       MDKText(@"Experiment key, for example enable_recsys_in_home_show_case",
               @"实验键，例如 enable_recsys_in_home_show_case")];
@@ -976,6 +1068,9 @@ static UIViewController *MDKApplicationTopViewController(void) {
   valueField.accessibilityLabel = MDKText(@"Experiment value", @"实验值");
 
   UIStackView *row = [self cardWithColor:MDKBackgroundColor() radius:9.0];
+  UILabel *source = [self badgeWithText:@"" color:MDKMutedTextColor()];
+  source.hidden = YES;
+  [row addArrangedSubview:source];
   [row addArrangedSubview:keyField];
   [row addArrangedSubview:valueField];
   UIStackView *presets = [[UIStackView alloc] init];
@@ -1005,8 +1100,59 @@ static UIViewController *MDKApplicationTopViewController(void) {
     @"trueButton" : trueButton,
     @"falseButton" : falseButton,
     @"remove" : remove,
+    @"source" : source,
+    @"serverValues" : serverValues ?: @{},
+    @"hasServerSnapshot" : @(hasServerSnapshot),
+    @"persisted" : @(persisted),
   }];
   [_abMockRowsStack addArrangedSubview:row];
+  [keyField addTarget:self
+               action:@selector(refreshABMockRowStatusFromField:)
+     forControlEvents:UIControlEventEditingChanged];
+  [valueField addTarget:self
+                 action:@selector(refreshABMockRowStatusFromField:)
+       forControlEvents:UIControlEventEditingChanged];
+  [self refreshABMockRowStatus:_abMockRows.lastObject];
+}
+
+- (void)refreshABMockRowStatusFromField:(UITextField *)sender {
+  for (NSDictionary<NSString *, id> *row in _abMockRows) {
+    if (row[@"key"] == sender || row[@"value"] == sender) {
+      [self refreshABMockRowStatus:row];
+      return;
+    }
+  }
+}
+
+- (void)refreshABMockRowStatus:(NSDictionary<NSString *, id> *)row {
+  UITextField *keyField = row[@"key"];
+  UITextField *valueField = row[@"value"];
+  UILabel *source = row[@"source"];
+  NSString *key = [keyField.text stringByTrimmingCharactersInSet:
+      NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  NSString *value = valueField.text ?: @"";
+  NSDictionary *serverValues = row[@"serverValues"];
+  BOOL hasServerSnapshot = [row[@"hasServerSnapshot"] boolValue];
+  NSString *status = nil;
+  UIColor *color = MDKMutedTextColor();
+  if (key.length > 0) {
+    if (hasServerSnapshot && serverValues[key] == nil) {
+      status = MDKText(@"New", @"新增");
+      color = MDKColor(0xB45309);
+    } else if (hasServerSnapshot && ![serverValues[key] isEqualToString:value]) {
+      status = MDKText(@"Modified", @"已修改");
+      color = MDKAccentColor();
+    } else if (hasServerSnapshot) {
+      status = MDKText(@"Server", @"服务端");
+      color = MDKColor(0x1D4ED8);
+    } else if ([row[@"persisted"] boolValue]) {
+      status = @"Mock";
+      color = MDKColor(0x7C3AED);
+    }
+  }
+  source.hidden = status.length == 0;
+  source.text = status ?: @"";
+  source.backgroundColor = color;
 }
 
 - (void)refreshABMockEmptyState {
@@ -1015,8 +1161,8 @@ static UIViewController *MDKApplicationTopViewController(void) {
       _abMockEmptyState = [self emptyStateWithTitle:
           MDKText(@"No experiment overrides", @"暂无实验覆盖")
                                 body:MDKText(
-                                    @"Add one or more key/value pairs to override the dedicated AB response.",
-                                    @"添加一个或多个键值对，覆盖独立 AB 接口的返回值。")];
+                                    @"Capture an AB response or add one or more key/value pairs to override it.",
+                                    @"请先捕获 AB 响应，或添加一个或多个键值对来覆盖它。")];
       [_abMockRowsStack addArrangedSubview:_abMockEmptyState];
     }
   } else if (_abMockEmptyState != nil) {
@@ -1070,13 +1216,38 @@ static UIViewController *MDKApplicationTopViewController(void) {
     UITextField *keyField = row[@"key"];
     NSString *key = [keyField.text stringByTrimmingCharactersInSet:
         NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    if (key.length > 0) {
-      values[key] = [row[@"value"] text] ?: @"";
+    NSString *value = [row[@"value"] text] ?: @"";
+    NSDictionary *serverValues = row[@"serverValues"];
+    BOOL unchangedServerValue = [row[@"hasServerSnapshot"] boolValue] &&
+                                [serverValues[key] isEqualToString:value];
+    if (key.length > 0 && !unchangedServerValue) {
+      values[key] = value;
     }
   }
   MDKSaveMockOverride(
       MDKABConfigMockIdentifier, _abMockSwitch.isOn, values);
   [self renderDestination];
+}
+
+- (void)clearAllABMocks:(UIButton *)sender {
+  (void)sender;
+  UIAlertController *alert = [UIAlertController
+      alertControllerWithTitle:MDKText(@"Clear all experiment mocks?", @"清理全部实验 Mock？")
+                       message:MDKText(
+                           @"This removes every saved AB key/value override and disables the AB interface mock.",
+                           @"这会删除所有已保存的 AB 键值覆盖，并关闭 AB 接口 Mock。")
+                preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:MDKText(@"Cancel", @"取消")
+                                             style:UIAlertActionStyleCancel
+                                           handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:MDKText(@"Clear", @"清理")
+                                             style:UIAlertActionStyleDestructive
+                                           handler:^(__unused UIAlertAction *action) {
+    if (MDKClearAllMockOverrides()) {
+      [self renderDestination];
+    }
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
 }
 
 #pragma mark - Local state
