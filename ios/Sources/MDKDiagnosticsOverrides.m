@@ -120,12 +120,21 @@ BOOL MDKSaveMockOverride(NSString *identifier, BOOL enabled,
   return YES;
 }
 
+BOOL MDKClearAllMockOverrides(void) {
+  [NSUserDefaults.standardUserDefaults removeObjectForKey:MDKMockOverridesDefaultsKey];
+  return YES;
+}
+
+BOOL MDKIsABConfigRequest(NSURLRequest *request) {
+  return MDKIsAllowedAPIHost(request.URL.host ?: @"") &&
+         [request.HTTPMethod caseInsensitiveCompare:@"POST"] == NSOrderedSame &&
+         [request.URL.path isEqualToString:MDKABConfigPath];
+}
+
 BOOL MDKShouldMockABConfigRequest(NSURLRequest *request) {
   NSDictionary *override = MDKMockOverride(MDKABConfigMockIdentifier);
   NSDictionary *values = override[@"values"];
-  return MDKIsAllowedAPIHost(request.URL.host ?: @"") &&
-         [request.HTTPMethod caseInsensitiveCompare:@"POST"] == NSOrderedSame &&
-         [request.URL.path isEqualToString:MDKABConfigPath] &&
+  return MDKIsABConfigRequest(request) &&
          [override[@"enabled"] boolValue] &&
          [values isKindOfClass:NSDictionary.class] && values.count > 0;
 }

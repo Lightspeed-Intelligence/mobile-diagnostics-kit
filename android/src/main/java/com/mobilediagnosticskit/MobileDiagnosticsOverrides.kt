@@ -114,6 +114,11 @@ internal object MobileDiagnosticsOverrides {
     return preferences()?.edit()?.putString(MOCK_OVERRIDES_KEY, root.toString())?.commit() == true
   }
 
+  fun clearAllMockOverrides(): Boolean = preferences()
+    ?.edit()
+    ?.remove(MOCK_OVERRIDES_KEY)
+    ?.commit() == true
+
   /** Removes accidental whitespace-only keys while keeping user-defined experiment names. */
   internal fun normalizeMockValues(values: Map<String, String>): Map<String, String> =
     values.asSequence()
@@ -122,14 +127,32 @@ internal object MobileDiagnosticsOverrides {
       .sortedBy { (key, _) -> key }
       .toMap()
 
+  /** Extracts editable primitive values from a captured AB config response. */
+  internal fun parseABConfigValues(body: String): Map<String, String>? = runCatching {
+    val configs = JSONObject(body)
+      .optJSONObject("data")
+      ?.optJSONObject("configs")
+      ?: return null
+    buildMap {
+      configs.keys().forEach { key ->
+        when (val value = configs.opt(key)) {
+          is String -> put(key, value)
+          is Boolean, is Number -> put(key, value.toString())
+        }
+      }
+    }
+  }.getOrNull()
+
   fun patchABConfigResponse(url: HttpUrl, method: String, body: ByteArray): ByteArray? =
     patchABConfigResponse(url, method, body, mockOverride(AB_CONFIG_MOCK_ID))
 
+  internal fun isABConfigRequest(url: HttpUrl, method: String): Boolean =
+    isAllowedApiHost(url.host) &&
+      method.equals("POST", ignoreCase = true) &&
+      url.encodedPath == AB_CONFIG_PATH
+
   fun shouldMockABConfigRequest(url: HttpUrl, method: String): Boolean {
-    if (!isAllowedApiHost(url.host) ||
-      !method.equals("POST", ignoreCase = true) ||
-      url.encodedPath != AB_CONFIG_PATH
-    ) return false
+    if (!isABConfigRequest(url, method)) return false
     val override = mockOverride(AB_CONFIG_MOCK_ID)
     return override.enabled && override.values.isNotEmpty()
   }
@@ -140,10 +163,7 @@ internal object MobileDiagnosticsOverrides {
     body: ByteArray,
     override: MobileDiagnosticsMockOverride,
   ): ByteArray? {
-    if (!isAllowedApiHost(url.host) ||
-      !method.equals("POST", ignoreCase = true) ||
-      url.encodedPath != AB_CONFIG_PATH
-    ) return null
+    if (!isABConfigRequest(url, method)) return null
     if (!override.enabled || override.values.isEmpty()) return null
 
     return runCatching {
@@ -164,7 +184,7 @@ internal object MobileDiagnosticsOverrides {
     Context.MODE_PRIVATE,
   )
 
-  private fun isAllowedApiHost(host: String): Boolean {
+  internal fun isAllowedApiHost(host: String): Boolean {
     val normalized = host.lowercase(Locale.ROOT)
     return normalized == "api.tipsy.chat" ||
       normalized == "api.dev.fantacy.live" ||
