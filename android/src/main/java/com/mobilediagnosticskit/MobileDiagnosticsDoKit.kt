@@ -83,6 +83,8 @@ internal object MobileDiagnosticsDoKit {
       DestinationKit(MobileDiagnosticsActivity.DESTINATION_NETWORK),
       DestinationKit(MobileDiagnosticsActivity.DESTINATION_STORAGE),
       DestinationKit(MobileDiagnosticsActivity.DESTINATION_OTA),
+      DestinationKit(MobileDiagnosticsActivity.DESTINATION_API),
+      DestinationKit(MobileDiagnosticsActivity.DESTINATION_MOCKS),
     ),
   )
 
@@ -110,7 +112,9 @@ internal object MobileDiagnosticsDoKit {
       .build()
     DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
     OkHttpClientProvider.setOkHttpClientFactory {
-      OkHttpClientProvider.createClientBuilder(application)
+      MobileDiagnosticsNativeNetwork.installOverrides(
+        OkHttpClientProvider.createClientBuilder(application),
+      )
         .addInterceptor(MobileDiagnosticsImageInterceptor())
         .addInterceptor(DokitCapInterceptor())
         .build()
@@ -169,6 +173,8 @@ internal object MobileDiagnosticsDoKit {
       get() = when (destination) {
         MobileDiagnosticsActivity.DESTINATION_NETWORK -> R.string.mobile_diagnostics_network
         MobileDiagnosticsActivity.DESTINATION_OTA -> R.string.mobile_diagnostics_expo_update
+        MobileDiagnosticsActivity.DESTINATION_API -> R.string.mobile_diagnostics_api_environment
+        MobileDiagnosticsActivity.DESTINATION_MOCKS -> R.string.mobile_diagnostics_interface_mock
         else -> R.string.mobile_diagnostics_local_state
       }
 
@@ -176,6 +182,8 @@ internal object MobileDiagnosticsDoKit {
       get() = when (destination) {
         MobileDiagnosticsActivity.DESTINATION_NETWORK -> android.R.drawable.ic_menu_search
         MobileDiagnosticsActivity.DESTINATION_OTA -> R.drawable.mobile_diagnostics_expo_update
+        MobileDiagnosticsActivity.DESTINATION_API -> android.R.drawable.ic_menu_manage
+        MobileDiagnosticsActivity.DESTINATION_MOCKS -> android.R.drawable.ic_menu_agenda
         else -> android.R.drawable.ic_menu_edit
       }
 

@@ -106,6 +106,9 @@ describe('DoKit Expo config plugin', () => {
     ).toBeLessThan(
       application.indexOf('.addInterceptor(DokitCapInterceptor())')
     )
+    expect(application).toContain(
+      'MobileDiagnosticsNativeNetwork.installOverrides('
+    )
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(
@@ -169,6 +172,9 @@ describe('DoKit Expo config plugin', () => {
       )
     ).toBeLessThan(
       application.indexOf('.addInterceptor(DokitCapInterceptor())')
+    )
+    expect(application).toContain(
+      'MobileDiagnosticsNativeNetwork.installOverrides('
     )
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')

@@ -74,6 +74,7 @@ class MobileDiagnosticsActivity : Activity() {
   private var networkRecordsContainer: LinearLayout? = null
   private val networkFilterButtons = linkedMapOf<String, TextView>()
   private var otaStatus: TextView? = null
+  private var selectedMockIdentifier: String? = null
 
   private val networkRefreshRunnable = object : Runnable {
     override fun run() {
@@ -109,6 +110,9 @@ class MobileDiagnosticsActivity : Activity() {
   override fun onBackPressed() {
     if (selectedNetworkRecord != null) {
       renderDestination(DESTINATION_NETWORK)
+    } else if (currentDestination == DESTINATION_MOCKS && selectedMockIdentifier != null) {
+      selectedMockIdentifier = null
+      renderDestination(DESTINATION_MOCKS)
     } else {
       finishAndRestorePanel()
     }
@@ -159,6 +163,8 @@ class MobileDiagnosticsActivity : Activity() {
     when (destination) {
       DESTINATION_NETWORK -> renderNetwork()
       DESTINATION_OTA -> renderOta()
+      DESTINATION_API -> renderApiEnvironment()
+      DESTINATION_MOCKS -> renderInterfaceMocks()
       else -> renderStorage()
     }
     scheduleNetworkRefresh()
@@ -167,6 +173,8 @@ class MobileDiagnosticsActivity : Activity() {
   private fun destinationTitle(destination: String): String = when (destination) {
     DESTINATION_NETWORK -> getString(R.string.mobile_diagnostics_network)
     DESTINATION_OTA -> getString(R.string.mobile_diagnostics_expo_update)
+    DESTINATION_API -> getString(R.string.mobile_diagnostics_api_environment)
+    DESTINATION_MOCKS -> getString(R.string.mobile_diagnostics_interface_mock)
     else -> getString(R.string.mobile_diagnostics_local_state)
   }
 
@@ -473,6 +481,289 @@ class MobileDiagnosticsActivity : Activity() {
     is Boolean -> "boolean"
     is Number -> "number"
     else -> "string"
+  }
+
+  private fun renderApiEnvironment() {
+    val scroll = scrollingColumn()
+    val saved = MobileDiagnosticsOverrides.savedApiBaseUrl()
+    scroll.column.addView(infoCard(
+      getString(R.string.mobile_diagnostics_api_security_title),
+      getString(R.string.mobile_diagnostics_api_security_body),
+    ))
+    scroll.column.addView(cardContainer(topMargin = 10).apply {
+      addView(TextView(context).apply {
+        text = getString(R.string.mobile_diagnostics_api_current)
+        textSize = 13f
+        setTextColor(MUTED_TEXT)
+      })
+      addView(TextView(context).apply {
+        text = saved ?: getString(R.string.mobile_diagnostics_api_default)
+        textSize = 13f
+        setTextColor(if (saved == null) SECONDARY_TEXT else ACCENT)
+        typeface = Typeface.MONOSPACE
+        setTextIsSelectable(true)
+        setPadding(0, dp(6), 0, 0)
+      })
+    })
+
+    val editor = EditText(this).apply {
+      setText(saved.orEmpty())
+      setSelection(text.length)
+      hint = getString(R.string.mobile_diagnostics_api_placeholder)
+      textSize = 13f
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      setSingleLine(true)
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+      minimumHeight = dp(48)
+      setPadding(dp(13), dp(8), dp(13), dp(8))
+      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    }
+    scroll.column.addView(editor.withTopMargin(10))
+    scroll.column.addView(LinearLayout(this).apply {
+      orientation = LinearLayout.HORIZONTAL
+      addView(actionButton(
+        getString(R.string.mobile_diagnostics_save),
+        primary = true,
+      ) {
+        val canonical = MobileDiagnosticsOverrides.saveApiBaseUrl(editor.text.toString())
+        if (canonical == null) {
+          Toast.makeText(
+            this@MobileDiagnosticsActivity,
+            R.string.mobile_diagnostics_api_invalid,
+            Toast.LENGTH_LONG,
+          ).show()
+        } else {
+          Toast.makeText(
+            this@MobileDiagnosticsActivity,
+            R.string.mobile_diagnostics_api_saved,
+            Toast.LENGTH_SHORT,
+          ).show()
+          renderDestination(DESTINATION_API)
+        }
+      }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(4) })
+      addView(actionButton(getString(R.string.mobile_diagnostics_reset)) {
+        MobileDiagnosticsOverrides.clearApiBaseUrl()
+        renderDestination(DESTINATION_API)
+      }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(4) })
+    }.withTopMargin(8))
+    scroll.column.addView(infoCard(
+      getString(R.string.mobile_diagnostics_api_scope_title),
+      getString(R.string.mobile_diagnostics_api_scope_body),
+    ).withTopMargin(10))
+    body.addView(scroll.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+  }
+
+  private fun renderInterfaceMocks() {
+    val selected = MobileDiagnosticsMockRegistry.endpoints.firstOrNull {
+      it.identifier == selectedMockIdentifier
+    }
+    if (selected != null) {
+      renderMockDetails(selected)
+      return
+    }
+
+    val scroll = scrollingColumn()
+    scroll.column.addView(infoCard(
+      getString(R.string.mobile_diagnostics_mock_security_title),
+      getString(R.string.mobile_diagnostics_mock_security_body),
+    ))
+    MobileDiagnosticsMockRegistry.endpoints.forEach { endpoint ->
+      val override = MobileDiagnosticsOverrides.mockOverride(endpoint.identifier)
+      scroll.column.addView(cardContainer(clickable = true).apply {
+        addView(LinearLayout(context).apply {
+          gravity = Gravity.CENTER_VERTICAL
+          orientation = LinearLayout.HORIZONTAL
+          addView(TextView(context).apply {
+            text = getString(endpoint.titleResource)
+            textSize = 15f
+            setTextColor(PRIMARY_TEXT)
+            setTypeface(typeface, Typeface.BOLD)
+          }, LinearLayout.LayoutParams(0, WRAP, 1f))
+          addView(badge(
+            getString(
+              if (override.enabled) R.string.mobile_diagnostics_enabled
+              else R.string.mobile_diagnostics_disabled,
+            ),
+            if (override.enabled) ACCENT else BORDER,
+          ))
+        })
+        addView(TextView(context).apply {
+          text = getString(endpoint.descriptionResource)
+          textSize = 12f
+          setTextColor(SECONDARY_TEXT)
+          setPadding(0, dp(7), 0, 0)
+        })
+        addView(TextView(context).apply {
+          text = "${endpoint.method} ${endpoint.path}"
+          textSize = 10f
+          setTextColor(MUTED_TEXT)
+          typeface = Typeface.MONOSPACE
+          setPadding(0, dp(8), 0, 0)
+        })
+        setOnClickListener {
+          selectedMockIdentifier = endpoint.identifier
+          renderDestination(DESTINATION_MOCKS)
+        }
+      })
+    }
+    body.addView(scroll.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+  }
+
+  private fun renderMockDetails(endpoint: MobileDiagnosticsMockEndpoint) {
+    val scroll = scrollingColumn()
+    scroll.column.addView(actionButton(getString(R.string.mobile_diagnostics_mock_back)) {
+      selectedMockIdentifier = null
+      renderDestination(DESTINATION_MOCKS)
+    }, LinearLayout.LayoutParams(MATCH, dp(44)))
+
+    val current = MobileDiagnosticsOverrides.mockOverride(endpoint.identifier)
+    val enabled = Switch(this).apply {
+      isChecked = current.enabled
+      contentDescription = getString(R.string.mobile_diagnostics_mock_enable)
+    }
+    scroll.column.addView(cardContainer(topMargin = 10).apply {
+      addView(LinearLayout(context).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        orientation = LinearLayout.HORIZONTAL
+        addView(LinearLayout(context).apply {
+          orientation = LinearLayout.VERTICAL
+          addView(TextView(context).apply {
+            text = getString(endpoint.titleResource)
+            textSize = 17f
+            setTextColor(PRIMARY_TEXT)
+            setTypeface(typeface, Typeface.BOLD)
+          })
+          addView(TextView(context).apply {
+            text = "${endpoint.method} ${endpoint.path}"
+            textSize = 10f
+            setTextColor(MUTED_TEXT)
+            typeface = Typeface.MONOSPACE
+            setPadding(0, dp(4), 0, 0)
+          })
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        addView(enabled)
+      })
+    })
+
+    val rows = mutableListOf<ABMockRowViews>()
+    val rowsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    fun showEmptyStateIfNeeded() {
+      if (rows.isEmpty() && rowsContainer.childCount == 0) {
+        rowsContainer.addView(emptyState(
+          getString(R.string.mobile_diagnostics_ab_empty_title),
+          getString(R.string.mobile_diagnostics_ab_empty_body),
+        ))
+      }
+    }
+    current.values.entries.sortedBy { it.key }.forEach { (key, value) ->
+      addABMockRow(rowsContainer, rows, key, value)
+    }
+    showEmptyStateIfNeeded()
+    scroll.column.addView(cardContainer(topMargin = 10).apply {
+      addView(TextView(context).apply {
+        text = getString(R.string.mobile_diagnostics_ab_key)
+        textSize = 12f
+        setTextColor(MUTED_TEXT)
+      })
+      addView(rowsContainer)
+      addView(actionButton(getString(R.string.mobile_diagnostics_ab_add)) {
+        if (rows.isEmpty()) rowsContainer.removeAllViews()
+        addABMockRow(rowsContainer, rows)
+      }.withTopMargin(8))
+    })
+    scroll.column.addView(actionButton(
+      getString(R.string.mobile_diagnostics_save),
+      primary = true,
+    ) {
+      val values = linkedMapOf<String, String>()
+      rows.forEach { row ->
+        val key = row.keyEditor.text.toString().trim()
+        if (key.isNotEmpty()) values[key] = row.valueEditor.text.toString()
+      }
+      if (MobileDiagnosticsOverrides.saveMockOverride(endpoint.identifier, enabled.isChecked, values)) {
+        Toast.makeText(this, R.string.mobile_diagnostics_mock_saved, Toast.LENGTH_SHORT).show()
+        renderDestination(DESTINATION_MOCKS)
+      } else {
+        Toast.makeText(this, R.string.mobile_diagnostics_unavailable, Toast.LENGTH_SHORT).show()
+      }
+    }, LinearLayout.LayoutParams(MATCH, dp(46)).apply { topMargin = dp(10) })
+    scroll.column.addView(infoCard(
+      getString(R.string.mobile_diagnostics_mock_behavior_title),
+      getString(R.string.mobile_diagnostics_mock_behavior_body),
+    ).withTopMargin(10))
+    body.addView(scroll.view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+  }
+
+  private fun addABMockRow(
+    container: LinearLayout,
+    rows: MutableList<ABMockRowViews>,
+    initialKey: String = "",
+    initialValue: String = "",
+  ) {
+    val keyEditor = EditText(this).apply {
+      setText(initialKey)
+      setSelection(text.length)
+      hint = getString(R.string.mobile_diagnostics_ab_key_placeholder)
+      textSize = 13f
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      setSingleLine(true)
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+      minimumHeight = dp(48)
+      setPadding(dp(13), dp(8), dp(13), dp(8))
+      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    }
+    val valueEditor = EditText(this).apply {
+      setText(initialValue)
+      setSelection(text.length)
+      hint = getString(R.string.mobile_diagnostics_ab_value_placeholder)
+      textSize = 13f
+      setTextColor(PRIMARY_TEXT)
+      setHintTextColor(MUTED_TEXT)
+      setSingleLine(true)
+      inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+      minimumHeight = dp(48)
+      setPadding(dp(13), dp(8), dp(13), dp(8))
+      background = roundedBackground(BACKGROUND, BORDER_MUTED, 9)
+    }
+    lateinit var row: ABMockRowViews
+    val remove = actionButton(getString(R.string.mobile_diagnostics_ab_remove), danger = true) {
+      removeABMockRow(row, container, rows)
+    }
+    val rowContainer = cardContainer(topMargin = 8).apply {
+      addView(keyEditor)
+      addView(valueEditor, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) })
+      addView(LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(actionButton("true") { valueEditor.setText("true") }, equalWeightParams(40).apply {
+          marginEnd = dp(4)
+        })
+        addView(actionButton("false") { valueEditor.setText("false") }, equalWeightParams(40).apply {
+          marginStart = dp(4)
+          marginEnd = dp(4)
+        })
+        addView(remove, equalWeightParams(40).apply { marginStart = dp(4) })
+      }.withTopMargin(8))
+    }
+    row = ABMockRowViews(rowContainer, keyEditor, valueEditor)
+    rows += row
+    container.addView(rowContainer)
+  }
+
+  private fun removeABMockRow(
+    row: ABMockRowViews,
+    container: LinearLayout,
+    rows: MutableList<ABMockRowViews>,
+  ) {
+    rows.remove(row)
+    container.removeView(row.container)
+    if (rows.isEmpty()) {
+      container.addView(emptyState(
+        getString(R.string.mobile_diagnostics_ab_empty_title),
+        getString(R.string.mobile_diagnostics_ab_empty_body),
+      ))
+    }
   }
 
   private fun renderNetwork() {
@@ -1690,6 +1981,12 @@ class MobileDiagnosticsActivity : Activity() {
 
   private data class ScrollColumn(val view: ScrollView, val column: LinearLayout)
 
+  private data class ABMockRowViews(
+    val container: View,
+    val keyEditor: EditText,
+    val valueEditor: EditText,
+  )
+
   private data class NetworkImagePreview(
     val bitmap: Bitmap,
     val byteCount: Int,
@@ -1699,6 +1996,8 @@ class MobileDiagnosticsActivity : Activity() {
     const val DESTINATION_NETWORK = "network"
     const val DESTINATION_STORAGE = "storage"
     const val DESTINATION_OTA = "ota"
+    const val DESTINATION_API = "api"
+    const val DESTINATION_MOCKS = "mocks"
     private const val EXTRA_DESTINATION = "mobileDiagnostics.destination"
     private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
     private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT

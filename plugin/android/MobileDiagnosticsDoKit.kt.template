@@ -40,6 +40,8 @@ internal object MobileDiagnosticsDoKit {
       DestinationKit("network"),
       DestinationKit("storage"),
       DestinationKit("ota"),
+      DestinationKit("api"),
+      DestinationKit("mocks"),
     ),
   )
 
@@ -229,6 +231,8 @@ internal object MobileDiagnosticsDoKit {
       get() = when (destination) {
         "network" -> R.string.mobile_diagnostics_network
         "ota" -> R.string.mobile_diagnostics_expo_update
+        "api" -> R.string.mobile_diagnostics_api_environment
+        "mocks" -> R.string.mobile_diagnostics_interface_mock
         else -> R.string.mobile_diagnostics_local_state
       }
 
@@ -236,6 +240,8 @@ internal object MobileDiagnosticsDoKit {
       get() = when (destination) {
         "network" -> android.R.drawable.ic_menu_search
         "ota" -> R.drawable.mobile_diagnostics_expo_update
+        "api" -> android.R.drawable.ic_menu_manage
+        "mocks" -> android.R.drawable.ic_menu_agenda
         else -> android.R.drawable.ic_menu_edit
       }
 
@@ -245,6 +251,12 @@ internal object MobileDiagnosticsDoKit {
 
     override fun onClickWithReturn(activity: Activity): Boolean {
       if (destination == "network") cleanupUnsupportedBuiltInKits(0)
+      if (destination == "api" || destination == "mocks") {
+        activity.window.decorView.post {
+          com.mobilediagnosticskit.MobileDiagnosticsActivity.open(activity, destination)
+        }
+        return true
+      }
       return MobileDiagnosticsLauncher.openAfterPanelDismiss(activity, destination)
     }
   }

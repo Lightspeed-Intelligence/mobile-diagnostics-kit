@@ -33,7 +33,9 @@ describe('Android native network capture contract', () => {
     expect(recorder).toContain(
       'fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also'
     )
-    expect(recorder).toContain('runCatching {\n      val alreadyCaptured')
+    expect(recorder).toContain('runCatching {\n      val interceptors')
+    expect(recorder).toContain('MobileDiagnosticsOverrideInterceptor')
+    expect(recorder).toContain('val alreadyCaptured')
   })
 
   it('offers an additive OkHttp interceptor that preserves native call results', () => {
