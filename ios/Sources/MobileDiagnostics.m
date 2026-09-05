@@ -279,6 +279,30 @@ static void MDKReplaceLegacyNetworkPlugin(
         diagnosticsOpenHandler(MDKDiagnosticsDestinationExpoUpdate);
       }
     }];
+    [manager addPluginWithTitle:MDKLocalizedString(@"API Environment", @"API 环境")
+                           icon:@"doraemon_setting"
+                           desc:MDKLocalizedString(@"Switch the first-party API origin",
+                                                   @"切换第一方 API 来源地址")
+                     pluginName:@"MDKAPIEnvironmentPlugin"
+                        atModule:MDKLocalizedString(@"Application Tools", @"应用工具")
+                          handle:^(__unused NSDictionary *itemData) {
+      [manager hiddenHomeWindow];
+      if (diagnosticsOpenHandler != nil) {
+        diagnosticsOpenHandler(MDKDiagnosticsDestinationAPI);
+      }
+    }];
+    [manager addPluginWithTitle:MDKLocalizedString(@"Interface Mock", @"接口 Mock")
+                           icon:@"doraemon_mock"
+                           desc:MDKLocalizedString(@"Configure scoped API response mocks",
+                                                   @"配置指定接口的响应 Mock")
+                     pluginName:@"MDKInterfaceMockPlugin"
+                        atModule:MDKLocalizedString(@"Application Tools", @"应用工具")
+                          handle:^(__unused NSDictionary *itemData) {
+      [manager hiddenHomeWindow];
+      if (diagnosticsOpenHandler != nil) {
+        diagnosticsOpenHandler(MDKDiagnosticsDestinationMocks);
+      }
+    }];
 
     [manager install];
     MDKRemoveUnsupportedPlatformTools(manager);
@@ -300,6 +324,11 @@ static void MDKReplaceLegacyNetworkPlugin(
   MDKDiagnosticsSurfaceProvider retainedSurfaceProvider =
       [surfaceProvider copy];
   [self installWithOpenHandler:^(MDKDiagnosticsDestination destination) {
+    if (destination == MDKDiagnosticsDestinationAPI ||
+        destination == MDKDiagnosticsDestinationMocks) {
+      [MDKNativeDiagnosticsViewController presentDestination:destination];
+      return;
+    }
     void (^presentSurface)(void) = ^{
       UINavigationController *strongNavigationController =
           weakNavigationController;
@@ -316,6 +345,9 @@ static void MDKReplaceLegacyNetworkPlugin(
           initialDestination = @"ota";
           break;
         case MDKDiagnosticsDestinationLocalState:
+          break;
+        case MDKDiagnosticsDestinationAPI:
+        case MDKDiagnosticsDestinationMocks:
           break;
       }
 

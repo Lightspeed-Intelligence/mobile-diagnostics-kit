@@ -7,6 +7,8 @@ typedef NS_ENUM(NSInteger, MDKDiagnosticsDestination) {
   MDKDiagnosticsDestinationLocalState = 0,
   MDKDiagnosticsDestinationExpoUpdate = 1,
   MDKDiagnosticsDestinationNetwork = 2,
+  MDKDiagnosticsDestinationAPI = 3,
+  MDKDiagnosticsDestinationMocks = 4,
 };
 
 typedef void (^MDKDiagnosticsOpenHandler)(

@@ -1,4 +1,5 @@
 #import "MobileDiagnostics.h"
+#import "MDKDiagnosticsURLProtocol.h"
 
 #import <UIKit/UIKit.h>
 
@@ -8,6 +9,7 @@
 @implementation MDKDiagnosticsBootstrap
 
 + (void)load {
+  MDKInstallDiagnosticsURLProtocol();
   dispatch_async(dispatch_get_main_queue(), ^{
     NSNotificationCenter *notifications = NSNotificationCenter.defaultCenter;
     [notifications addObserver:self

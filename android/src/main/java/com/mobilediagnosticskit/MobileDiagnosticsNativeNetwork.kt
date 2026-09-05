@@ -123,7 +123,11 @@ object MobileDiagnosticsNativeNetwork {
   @JvmStatic
   fun install(builder: OkHttpClient.Builder): OkHttpClient.Builder = builder.also { target ->
     runCatching {
-      val alreadyCaptured = target.interceptors().any {
+      val interceptors = target.interceptors()
+      if (interceptors.none { it is MobileDiagnosticsOverrideInterceptor }) {
+        target.addInterceptor(MobileDiagnosticsOverrideInterceptor())
+      }
+      val alreadyCaptured = interceptors.any {
         it is MobileDiagnosticsOkHttpInterceptor || it.javaClass.name == DOKIT_CAP_INTERCEPTOR
       }
       if (!alreadyCaptured) target.addInterceptor(MobileDiagnosticsOkHttpInterceptor())

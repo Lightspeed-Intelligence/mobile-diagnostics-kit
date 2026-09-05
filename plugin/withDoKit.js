@@ -313,6 +313,8 @@ function renderMobileDiagnosticsResources() {
   <string name="mobile_diagnostics_network">Network</string>
   <string name="mobile_diagnostics_local_state">Local State</string>
   <string name="mobile_diagnostics_expo_update">Expo Update</string>
+  <string name="mobile_diagnostics_api_environment">API Environment</string>
+  <string name="mobile_diagnostics_interface_mock">Interface Mock</string>
   <string name="mobile_diagnostics_runtime_unavailable">Diagnostics runtime is not ready</string>
 </resources>
 `
@@ -325,6 +327,8 @@ function renderMobileDiagnosticsChineseResources() {
   <string name="mobile_diagnostics_network">网络抓包</string>
   <string name="mobile_diagnostics_local_state">本地状态</string>
   <string name="mobile_diagnostics_expo_update">Expo 热更新</string>
+  <string name="mobile_diagnostics_api_environment">API 环境</string>
+  <string name="mobile_diagnostics_interface_mock">接口 Mock</string>
   <string name="mobile_diagnostics_runtime_unavailable">诊断运行时尚未就绪</string>
 </resources>
 `

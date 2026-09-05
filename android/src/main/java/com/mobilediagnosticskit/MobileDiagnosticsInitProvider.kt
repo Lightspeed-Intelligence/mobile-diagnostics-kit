@@ -9,6 +9,7 @@ import android.net.Uri
 class MobileDiagnosticsInitProvider : ContentProvider() {
   override fun onCreate(): Boolean {
     val application = context?.applicationContext as? Application ?: return false
+    MobileDiagnosticsOverrides.install(application)
     MobileDiagnosticsDoKit.install(application)
     return true
   }

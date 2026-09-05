@@ -1,6 +1,7 @@
 #import "MDKNativeDiagnosticsViewController.h"
 
 #import "MDKExpoUpdatesAdapter.h"
+#import "MDKDiagnosticsOverrides.h"
 
 #import <DoraemonKit/DoraemonCacheManager.h>
 #import <DoraemonKit/DoraemonKit.h>
@@ -73,6 +74,20 @@ static NSString *MDKCurrentBundleTitle(void) {
 
 static NSString *MDKOtaActionTitle(void) {
   return MDKText(@"Check for an Expo update", @"检查 Expo 热更新");
+}
+
+static NSArray<NSDictionary<NSString *, NSString *> *> *MDKMockEndpointRegistry(void) {
+  return @[
+    @{
+      @"identifier" : MDKABConfigMockIdentifier,
+      @"title" : MDKText(@"AB Experiment API", @"AB 实验接口"),
+      @"description" : MDKText(
+          @"Override selected values returned by the dedicated AB config bundle interface.",
+          @"覆盖独立 AB 配置接口返回的指定实验值。"),
+      @"method" : @"POST",
+      @"path" : MDKABConfigPath,
+    },
+  ];
 }
 
 static UIFont *MDKMonoFont(CGFloat size, UIFontWeight weight) {
@@ -557,6 +572,11 @@ static UIViewController *MDKApplicationTopViewController(void) {
   BOOL _networkResponseTab;
 
   UILabel *_otaStatus;
+
+  UITextField *_apiBaseField;
+  NSString *_selectedMockIdentifier;
+  UISwitch *_abMockSwitch;
+  UITextField *_abMockValueField;
 }
 
 - (instancetype)initWithDestination:(MDKDiagnosticsDestination)destination {
@@ -598,6 +618,12 @@ static UIViewController *MDKApplicationTopViewController(void) {
       break;
     case MDKDiagnosticsDestinationLocalState:
       title = MDKText(@"Local State", @"本地状态");
+      break;
+    case MDKDiagnosticsDestinationAPI:
+      title = MDKText(@"API Environment", @"API 环境");
+      break;
+    case MDKDiagnosticsDestinationMocks:
+      title = MDKText(@"Interface Mock", @"接口 Mock");
       break;
   }
   self.title = title;
@@ -691,8 +717,261 @@ static UIViewController *MDKApplicationTopViewController(void) {
     case MDKDiagnosticsDestinationLocalState:
       [self renderStorage];
       break;
+    case MDKDiagnosticsDestinationAPI:
+      [self renderAPIEnvironment];
+      break;
+    case MDKDiagnosticsDestinationMocks:
+      [self renderInterfaceMocks];
+      break;
   }
   [_scrollView setContentOffset:CGPointZero animated:NO];
+}
+
+#pragma mark - API environment
+
+- (void)renderAPIEnvironment {
+  [_content addArrangedSubview:[self
+      infoCardWithTitle:MDKText(@"First-party API only", @"仅限 Tipsy API")
+                   value:MDKText(
+                       @"Changes the origin for new Tipsy /api/v1, /api/v2, and future versioned API requests. OSS, CDN, analytics, and third-party requests are not changed.",
+                       @"替换新发起的 Tipsy /api/v1、/api/v2 及后续版本化 API 请求的来源地址。OSS、CDN、埋点和第三方请求不受影响。")]];
+
+  UIStackView *current = [self cardWithColor:MDKCardColor() radius:12.0];
+  UILabel *currentTitle = [self labelWithText:MDKText(@"Current override", @"当前覆盖地址")];
+  currentTitle.font = [UIFont systemFontOfSize:12.0];
+  currentTitle.textColor = MDKMutedTextColor();
+  [current addArrangedSubview:currentTitle];
+  NSString *saved = MDKSavedAPIBaseURL();
+  UILabel *currentValue = [self labelWithText:saved ?: MDKText(
+      @"Build default (no override)", @"构建默认值（未覆盖）")];
+  currentValue.font = MDKMonoFont(12.0, UIFontWeightRegular);
+  currentValue.textColor = saved == nil ? MDKSecondaryTextColor() : MDKAccentColor();
+  currentValue.accessibilityLabel = currentValue.text;
+  [current addArrangedSubview:currentValue];
+  [_content addArrangedSubview:current];
+
+  _apiBaseField = [self searchFieldWithPlaceholder:
+      @"https://branch.api.dev.fantacy.live/api/v2"];
+  _apiBaseField.text = saved ?: @"";
+  _apiBaseField.keyboardType = UIKeyboardTypeURL;
+  _apiBaseField.accessibilityLabel = MDKText(@"API base URL", @"API 地址");
+  [_content addArrangedSubview:_apiBaseField];
+
+  UIStackView *actions = [[UIStackView alloc] init];
+  actions.axis = UILayoutConstraintAxisHorizontal;
+  actions.distribution = UIStackViewDistributionFillEqually;
+  actions.spacing = 8.0;
+  UIButton *save = [self primaryButtonWithTitle:MDKText(@"Save", @"保存")];
+  [save addTarget:self
+                action:@selector(saveAPIEnvironment)
+      forControlEvents:UIControlEventTouchUpInside];
+  UIButton *reset = [self secondaryButtonWithTitle:MDKText(@"Reset", @"恢复默认")];
+  [reset addTarget:self
+                 action:@selector(clearAPIEnvironment)
+       forControlEvents:UIControlEventTouchUpInside];
+  [actions addArrangedSubview:save];
+  [actions addArrangedSubview:reset];
+  [_content addArrangedSubview:actions];
+
+  [_content addArrangedSubview:[self
+      infoCardWithTitle:MDKText(@"Path versions are preserved", @"保留原接口版本")
+                   value:MDKText(
+                       @"Only scheme, host, and port are replaced. A v1 request stays v1 and a v2 request stays v2. Existing streaming connections continue until reconnected.",
+                       @"只替换 scheme、host 和 port。v1 请求仍是 v1，v2 请求仍是 v2；已经建立的流式连接会继续使用原地址，直到重新连接。")]];
+}
+
+- (void)saveAPIEnvironment {
+  if (!MDKSaveAPIBaseURL(_apiBaseField.text ?: @"")) {
+    [self showNoticeWithTitle:MDKText(@"Invalid API address", @"API 地址无效")
+                     message:MDKText(
+                         @"Use HTTPS with api.dev.fantacy.live, one of its subdomains, or exact api.tipsy.chat. Credentials, query, fragments, and nonstandard ports are not allowed.",
+                         @"仅支持 HTTPS 的 api.dev.fantacy.live、其子域名或精确的 api.tipsy.chat；不允许凭据、query、fragment 和非标准端口。")];
+    return;
+  }
+  [self renderDestination];
+}
+
+- (void)clearAPIEnvironment {
+  MDKClearAPIBaseURL();
+  [self renderDestination];
+}
+
+#pragma mark - Interface mocks
+
+- (void)renderInterfaceMocks {
+  if ([_selectedMockIdentifier isEqualToString:MDKABConfigMockIdentifier]) {
+    [self renderABMockDetails];
+    return;
+  }
+  [_content addArrangedSubview:[self
+      infoCardWithTitle:MDKText(@"Opt-in response overrides", @"按需覆盖响应")
+                   value:MDKText(
+                       @"Each mock is disabled by default and matches one exact API contract. Unknown fields and other interfaces pass through unchanged.",
+                       @"每个 Mock 默认关闭，并且只匹配一个精确接口契约。未知字段和其他接口均原样透传。")]];
+
+  [MDKMockEndpointRegistry() enumerateObjectsUsingBlock:^(
+      NSDictionary<NSString *, NSString *> *endpoint, NSUInteger index,
+      __unused BOOL *stop) {
+    NSDictionary *override = MDKMockOverride(endpoint[@"identifier"]);
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
+    button.tag = index;
+    button.backgroundColor = MDKCardColor();
+    button.layer.cornerRadius = 12.0;
+    button.layer.borderWidth = 1.0;
+    button.layer.borderColor = MDKBorderColor().CGColor;
+    BOOL enabled = [override[@"enabled"] boolValue];
+    button.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", endpoint[@"title"],
+        enabled ? MDKText(@"Enabled", @"已启用") : MDKText(@"Disabled", @"未启用")];
+    [button addTarget:self
+                   action:@selector(showMockDetails:)
+         forControlEvents:UIControlEventTouchUpInside];
+
+    UIStackView *labels = [[UIStackView alloc] init];
+    labels.translatesAutoresizingMaskIntoConstraints = NO;
+    labels.axis = UILayoutConstraintAxisVertical;
+    labels.spacing = 7.0;
+    labels.userInteractionEnabled = NO;
+    UIStackView *top = [[UIStackView alloc] init];
+    top.axis = UILayoutConstraintAxisHorizontal;
+    top.alignment = UIStackViewAlignmentCenter;
+    top.spacing = 8.0;
+    UILabel *title = [self labelWithText:endpoint[@"title"]];
+    title.font = [UIFont boldSystemFontOfSize:15.0];
+    UILabel *status = [self badgeWithText:
+        (enabled ? MDKText(@"Enabled", @"已启用") : MDKText(@"Disabled", @"未启用"))
+                                      color:(enabled ? MDKAccentColor() : MDKBorderColor())];
+    [top addArrangedSubview:title];
+    [top addArrangedSubview:status];
+    UILabel *description = [self labelWithText:endpoint[@"description"]];
+    description.font = [UIFont systemFontOfSize:12.0];
+    description.textColor = MDKSecondaryTextColor();
+    UILabel *path = [self labelWithText:[NSString
+        stringWithFormat:@"%@ %@", endpoint[@"method"], endpoint[@"path"]]];
+    path.font = MDKMonoFont(10.0, UIFontWeightRegular);
+    path.textColor = MDKMutedTextColor();
+    [labels addArrangedSubview:top];
+    [labels addArrangedSubview:description];
+    [labels addArrangedSubview:path];
+    [button addSubview:labels];
+    [NSLayoutConstraint activateConstraints:@[
+      [labels.topAnchor constraintEqualToAnchor:button.topAnchor constant:13.0],
+      [labels.leadingAnchor constraintEqualToAnchor:button.leadingAnchor constant:13.0],
+      [labels.trailingAnchor constraintEqualToAnchor:button.trailingAnchor constant:-13.0],
+      [labels.bottomAnchor constraintEqualToAnchor:button.bottomAnchor constant:-13.0],
+      [button.heightAnchor constraintGreaterThanOrEqualToConstant:96.0],
+    ]];
+    [self->_content addArrangedSubview:button];
+  }];
+}
+
+- (void)showMockDetails:(UIButton *)sender {
+  NSArray *registry = MDKMockEndpointRegistry();
+  if (sender.tag >= registry.count) {
+    return;
+  }
+  _selectedMockIdentifier = registry[sender.tag][@"identifier"];
+  [self renderDestination];
+}
+
+- (void)renderABMockDetails {
+  UIButton *back = [self secondaryButtonWithTitle:
+      MDKText(@"Back to interface list", @"返回接口列表")];
+  [back addTarget:self
+               action:@selector(backToMockList)
+     forControlEvents:UIControlEventTouchUpInside];
+  [_content addArrangedSubview:back];
+
+  NSDictionary *override = MDKMockOverride(MDKABConfigMockIdentifier);
+  NSDictionary *values = [override[@"values"] isKindOfClass:NSDictionary.class]
+                             ? override[@"values"]
+                             : @{};
+  UIStackView *summary = [self cardWithColor:MDKCardColor() radius:12.0];
+  UIStackView *top = [[UIStackView alloc] init];
+  top.axis = UILayoutConstraintAxisHorizontal;
+  top.alignment = UIStackViewAlignmentCenter;
+  top.spacing = 8.0;
+  UIStackView *copy = [[UIStackView alloc] init];
+  copy.axis = UILayoutConstraintAxisVertical;
+  copy.spacing = 4.0;
+  UILabel *title = [self labelWithText:MDKText(@"AB Experiment API", @"AB 实验接口")];
+  title.font = [UIFont boldSystemFontOfSize:17.0];
+  UILabel *path = [self labelWithText:[NSString stringWithFormat:@"POST %@", MDKABConfigPath]];
+  path.font = MDKMonoFont(10.0, UIFontWeightRegular);
+  path.textColor = MDKMutedTextColor();
+  [copy addArrangedSubview:title];
+  [copy addArrangedSubview:path];
+  _abMockSwitch = [[UISwitch alloc] init];
+  _abMockSwitch.on = [override[@"enabled"] boolValue];
+  _abMockSwitch.onTintColor = MDKAccentColor();
+  _abMockSwitch.accessibilityLabel = MDKText(@"Enable this interface mock",
+                                             @"启用此接口 Mock");
+  [top addArrangedSubview:copy];
+  [top addArrangedSubview:_abMockSwitch];
+  [summary addArrangedSubview:top];
+  [_content addArrangedSubview:summary];
+
+  UIStackView *valueCard = [self cardWithColor:MDKCardColor() radius:12.0];
+  UILabel *keyTitle = [self labelWithText:MDKText(@"Experiment key", @"实验键")];
+  keyTitle.font = [UIFont systemFontOfSize:12.0];
+  keyTitle.textColor = MDKMutedTextColor();
+  UILabel *key = [self labelWithText:MDKScreenRecommendationKey];
+  key.font = MDKMonoFont(12.0, UIFontWeightRegular);
+  key.accessibilityLabel = MDKScreenRecommendationKey;
+  [valueCard addArrangedSubview:keyTitle];
+  [valueCard addArrangedSubview:key];
+  _abMockValueField = [self searchFieldWithPlaceholder:
+      MDKText(@"Experiment value", @"实验值")];
+  id savedValue = values[MDKScreenRecommendationKey];
+  _abMockValueField.text = [savedValue isKindOfClass:NSString.class] ? savedValue : @"";
+  _abMockValueField.accessibilityLabel = MDKText(@"Experiment value", @"实验值");
+  [valueCard addArrangedSubview:_abMockValueField];
+  UIStackView *presets = [[UIStackView alloc] init];
+  presets.axis = UILayoutConstraintAxisHorizontal;
+  presets.distribution = UIStackViewDistributionFillEqually;
+  presets.spacing = 8.0;
+  UIButton *trueButton = [self secondaryButtonWithTitle:@"true"];
+  [trueButton addTarget:self
+                    action:@selector(setABPresetTrue)
+          forControlEvents:UIControlEventTouchUpInside];
+  UIButton *falseButton = [self secondaryButtonWithTitle:@"false"];
+  [falseButton addTarget:self
+                     action:@selector(setABPresetFalse)
+           forControlEvents:UIControlEventTouchUpInside];
+  [presets addArrangedSubview:trueButton];
+  [presets addArrangedSubview:falseButton];
+  [valueCard addArrangedSubview:presets];
+  [_content addArrangedSubview:valueCard];
+
+  UIButton *save = [self primaryButtonWithTitle:MDKText(@"Save", @"保存")];
+  [save addTarget:self
+                action:@selector(saveABMock)
+      forControlEvents:UIControlEventTouchUpInside];
+  [_content addArrangedSubview:save];
+  [_content addArrangedSubview:[self
+      infoCardWithTitle:MDKText(@"Merge behavior", @"合并规则")
+                   value:MDKText(
+                       @"The selected value is merged into data.configs after a valid server response. Unselected experiments and all other response fields remain unchanged.",
+                       @"服务端响应合法时，仅把选定值合并进 data.configs。未选择的实验和其他响应字段保持不变。")]];
+}
+
+- (void)backToMockList {
+  _selectedMockIdentifier = nil;
+  [self renderDestination];
+}
+
+- (void)setABPresetTrue {
+  _abMockValueField.text = @"true";
+}
+
+- (void)setABPresetFalse {
+  _abMockValueField.text = @"false";
+}
+
+- (void)saveABMock {
+  MDKSaveMockOverride(
+      MDKABConfigMockIdentifier, _abMockSwitch.isOn,
+      @{ MDKScreenRecommendationKey : _abMockValueField.text ?: @"" });
+  [self renderDestination];
 }
 
 #pragma mark - Local state
@@ -2147,6 +2426,16 @@ static UIViewController *MDKApplicationTopViewController(void) {
   button.layer.cornerRadius = 9.0;
   [button.heightAnchor constraintEqualToConstant:46.0].active = YES;
   return button;
+}
+
+- (void)showNoticeWithTitle:(NSString *)title message:(NSString *)message {
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                 message:message
+                                                          preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:MDKText(@"OK", @"确定")
+                                            style:UIAlertActionStyleDefault
+                                          handler:nil]];
+  [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)clearStack:(UIStackView *)stack {
