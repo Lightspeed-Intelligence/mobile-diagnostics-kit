@@ -81,6 +81,14 @@ describe('Android zero-host diagnostics UI contract', () => {
     const activity = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsActivity.kt'
     )
+    const strings = source('android/src/main/res/values/strings.xml')
+    const localizedStrings = source(
+      'android/src/main/res/values-zh-rCN/strings.xml'
+    )
+    const toolbar = activity.slice(
+      activity.indexOf('private fun renderNetwork()'),
+      activity.indexOf('private fun networkMetricsCard()')
+    )
 
     expect(activity).toContain('NetworkManager.isActive()')
     expect(activity).toContain('NetworkManager.get().startMonitor()')
@@ -94,6 +102,18 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(activity).toContain('createCurlCommand(')
     expect(activity).toContain('copyToClipboard(')
     expect(activity).toContain('collapsibleSection(')
+    expect(activity).toContain('private var networkNewestFirst = true')
+    expect(activity).toContain('private fun toggleNetworkSortOrder(')
+    expect(activity).toContain(
+      'if (networkNewestFirst) captured.asReversed() else captured'
+    )
+    expect(toolbar).toContain('orientation = LinearLayout.HORIZONTAL')
+    expect(toolbar.match(/addView\(actionButton/g)?.length).toBe(3)
+    expect(toolbar).toContain('toggleNetworkSortOrder(')
+    expect(strings).toContain('name="mobile_diagnostics_sort_newest_first"')
+    expect(strings).toContain('name="mobile_diagnostics_sort_oldest_first"')
+    expect(localizedStrings).toContain('>倒序</string>')
+    expect(localizedStrings).toContain('>正序</string>')
   })
 
   it('previews image responses without decoding an unbounded payload', () => {

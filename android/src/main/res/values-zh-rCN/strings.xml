@@ -96,6 +96,9 @@
   <string name="mobile_diagnostics_network_errors">错误</string>
   <string name="mobile_diagnostics_network_received">已接收</string>
   <string name="mobile_diagnostics_network_capture">抓包</string>
+  <string name="mobile_diagnostics_sort_newest_first">倒序</string>
+  <string name="mobile_diagnostics_sort_oldest_first">正序</string>
+  <string name="mobile_diagnostics_sort_order_accessibility">排序：%1$s</string>
   <string name="mobile_diagnostics_network_search">搜索域名、路径、方法或状态码</string>
   <string name="mobile_diagnostics_network_showing">显示 %1$d/%2$d 条</string>
   <string name="mobile_diagnostics_network_metadata">%1$s / 已接收 %2$s</string>

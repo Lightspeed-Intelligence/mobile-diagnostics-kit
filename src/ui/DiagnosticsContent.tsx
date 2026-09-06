@@ -6,10 +6,7 @@ import {
   type UpdatesLike,
 } from '../otaController'
 import type { DiagnosticsDestination } from '../presentation'
-import type {
-  NetworkFilter,
-  NetworkSortOrder,
-} from '../networkDiagnostics'
+import type { NetworkFilter } from '../networkDiagnostics'
 import {
   createStorageInspector,
   type MMKVStorageLike,
@@ -56,8 +53,6 @@ export function DiagnosticsContent({
   const [snapshots, setSnapshots] = useState<StorageEntrySnapshot[]>([])
   const [networkFilter, setNetworkFilter] = useState<NetworkFilter>('all')
   const [networkQuery, setNetworkQuery] = useState('')
-  const [networkSortOrder, setNetworkSortOrder] =
-    useState<NetworkSortOrder>('ascending')
   const labels = useMemo(() => mergeLabels(labelOverrides), [labelOverrides])
   const destinationTitle = {
     network: labels.networkTab,
@@ -127,9 +122,7 @@ export function DiagnosticsContent({
           labels={labels}
           onFilterChange={setNetworkFilter}
           onQueryChange={setNetworkQuery}
-          onSortOrderChange={setNetworkSortOrder}
           query={networkQuery}
-          sortOrder={networkSortOrder}
           testIDPrefix={testIDPrefix}
         />
       ) : destination === 'storage' ? (

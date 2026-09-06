@@ -68,18 +68,18 @@ describe('cross-platform React Native network inspector', () => {
     ).toBe(false)
   })
 
-  it('defaults Network to chronological order and exposes a reverse-order switch', () => {
+  it('does not render the native request-order control on the RN surface', () => {
     const panel = read('src/ui/NetworkPanel.tsx')
     const model = read('src/ui/model.ts')
     const diagnostics = read('src/networkDiagnostics.ts')
     const content = read('src/ui/DiagnosticsContent.tsx')
 
-    expect(diagnostics).toContain("order: NetworkSortOrder = 'ascending'")
-    expect(content).toContain("useState<NetworkSortOrder>('ascending')")
-    expect(panel).toContain('sortNetworkRequests(requests, sortOrder)')
-    expect(panel).toContain('testID={`${testIDPrefix}.network.sortSwitch`}')
-    expect(model).toContain("networkSortAscending: 'Oldest first'")
-    expect(model).toContain("networkSortDescending: 'Newest first'")
+    expect(diagnostics).not.toContain('NetworkSortOrder')
+    expect(content).not.toContain('networkSortOrder')
+    expect(panel).not.toContain('sortNetworkRequests')
+    expect(panel).not.toContain('.network.sortSwitch')
+    expect(model).not.toContain('networkSortAscending')
+    expect(model).not.toContain('networkSortDescending')
   })
 
   it('keeps Network filters outside the request/detail view lifecycle', () => {
@@ -89,7 +89,6 @@ describe('cross-platform React Native network inspector', () => {
     expect(content).toContain("useState<NetworkFilter>('all')")
     expect(content).toContain('onQueryChange={setNetworkQuery}')
     expect(content).toContain('onFilterChange={setNetworkFilter}')
-    expect(content).toContain('onSortOrderChange={setNetworkSortOrder}')
     expect(panel).toContain('query: string')
     expect(panel).toContain('onQueryChange: (query: string) => void')
     expect(panel).not.toContain('const [query, setQuery]')

@@ -24,17 +24,6 @@ export interface NetworkRequestSnapshot {
 
 export type NetworkResourceType = 'fetch' | 'image' | 'media' | 'other'
 export type NetworkFilter = 'all' | NetworkResourceType | 'errors'
-export type NetworkSortOrder = 'ascending' | 'descending'
-
-export function sortNetworkRequests(
-  requests: readonly NetworkRequestSnapshot[],
-  order: NetworkSortOrder = 'ascending'
-): NetworkRequestSnapshot[] {
-  const direction = order === 'descending' ? -1 : 1
-  return [...requests].sort(
-    (left, right) => (left.startTime - right.startTime) * direction
-  )
-}
 
 const IMAGE_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|svg|avif|heic)$/i
 const MEDIA_EXTENSIONS = /\.(?:mp4|mov|m4v|webm|mp3|m4a|wav|aac|ogg)$/i

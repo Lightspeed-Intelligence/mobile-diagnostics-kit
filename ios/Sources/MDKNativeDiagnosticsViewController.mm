@@ -571,6 +571,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
   UISwitch *_networkCaptureSwitch;
   NSArray<UIButton *> *_networkFilterButtons;
   NSString *_networkFilter;
+  BOOL _networkNewestFirst;
   NSTimer *_networkRefreshTimer;
   DoraemonNetFlowHttpModel *_selectedNetworkModel;
   BOOL _networkResponseTab;
@@ -590,6 +591,7 @@ static UIViewController *MDKApplicationTopViewController(void) {
   if (self != nil) {
     _destination = destination;
     _networkFilter = @"all";
+    _networkNewestFirst = YES;
   }
   return self;
 }
@@ -1661,8 +1663,14 @@ static NSDictionary<NSString *, NSString *> *MDKLatestABConfigValues(void) {
   [clear addTarget:self
             action:@selector(confirmClearNetwork)
   forControlEvents:UIControlEventTouchUpInside];
+  UIButton *sort = [self secondaryButtonWithTitle:[self networkSortTitle]];
+  sort.accessibilityLabel = [self networkSortAccessibilityLabel];
+  [sort addTarget:self
+            action:@selector(toggleNetworkSortOrder:)
+  forControlEvents:UIControlEventTouchUpInside];
   [actions addArrangedSubview:refresh];
   [actions addArrangedSubview:clear];
+  [actions addArrangedSubview:sort];
   [_content addArrangedSubview:actions];
 
   _networkSearchField = [self searchFieldWithPlaceholder:
@@ -1826,8 +1834,27 @@ static NSDictionary<NSString *, NSString *> *MDKLatestABConfigValues(void) {
     return;
   }
   NSArray *snapshot = [[DoraemonNetFlowDataSource shareInstance].httpModelArray copy];
-  _networkAllModels = [[snapshot reverseObjectEnumerator] allObjects];
+  _networkAllModels = _networkNewestFirst
+                          ? [[snapshot reverseObjectEnumerator] allObjects]
+                          : snapshot;
   [self filterNetworkModels];
+}
+
+- (void)toggleNetworkSortOrder:(UIButton *)button {
+  _networkNewestFirst = !_networkNewestFirst;
+  [button setTitle:[self networkSortTitle] forState:UIControlStateNormal];
+  button.accessibilityLabel = [self networkSortAccessibilityLabel];
+  [self refreshNetwork];
+}
+
+- (NSString *)networkSortTitle {
+  return _networkNewestFirst ? MDKText(@"Newest first", @"倒序")
+                             : MDKText(@"Oldest first", @"正序");
+}
+
+- (NSString *)networkSortAccessibilityLabel {
+  return [NSString stringWithFormat:MDKText(@"Sort order: %@", @"排序：%@"),
+                                    [self networkSortTitle]];
 }
 
 - (void)filterNetworkModels {

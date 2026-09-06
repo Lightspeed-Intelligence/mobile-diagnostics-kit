@@ -97,6 +97,9 @@
   <string name="mobile_diagnostics_network_errors">Errors</string>
   <string name="mobile_diagnostics_network_received">Received</string>
   <string name="mobile_diagnostics_network_capture">Capture</string>
+  <string name="mobile_diagnostics_sort_newest_first">Newest first</string>
+  <string name="mobile_diagnostics_sort_oldest_first">Oldest first</string>
+  <string name="mobile_diagnostics_sort_order_accessibility">Sort order: %1$s</string>
   <string name="mobile_diagnostics_network_search">Search host, path, method, or status</string>
   <string name="mobile_diagnostics_network_showing">Showing %1$d of %2$d</string>
   <string name="mobile_diagnostics_network_metadata">%1$s / %2$s received</string>

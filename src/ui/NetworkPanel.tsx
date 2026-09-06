@@ -14,10 +14,8 @@ import {
   filterNetworkRequests,
   formatBytes,
   isNetworkError,
-  sortNetworkRequests,
   type NetworkFilter,
   type NetworkRequestSnapshot,
-  type NetworkSortOrder,
 } from '../networkDiagnostics'
 import {
   nativeNetworkDiagnostics,
@@ -43,9 +41,7 @@ interface NetworkPanelProps {
   labels: DiagnosticsLabels
   onFilterChange: (filter: NetworkFilter) => void
   onQueryChange: (query: string) => void
-  onSortOrderChange: (order: NetworkSortOrder) => void
   query: string
-  sortOrder: NetworkSortOrder
   testIDPrefix: string
 }
 
@@ -55,9 +51,7 @@ export function NetworkPanel({
   labels,
   onFilterChange,
   onQueryChange,
-  onSortOrderChange,
   query,
-  sortOrder,
   testIDPrefix,
 }: NetworkPanelProps) {
   const [captureEnabled, setCaptureEnabled] = useState(false)
@@ -94,13 +88,9 @@ export function NetworkPanel({
     return () => clearInterval(timer)
   }, [refresh])
 
-  const orderedRequests = useMemo(
-    () => sortNetworkRequests(requests, sortOrder),
-    [requests, sortOrder]
-  )
   const filtered = useMemo(
-    () => filterNetworkRequests(orderedRequests, filter, query),
-    [filter, orderedRequests, query]
+    () => filterNetworkRequests(requests, filter, query),
+    [filter, query, requests]
   )
   const selected = requests.find(({ id }) => id === selectedId) ?? null
   const errorCount = requests.filter(isNetworkError).length
@@ -217,25 +207,6 @@ export function NetworkPanel({
             {labels.networkClear}
           </Text>
         </Pressable>
-      </View>
-
-      <View style={styles.sortControl}>
-        <Text style={styles.sortLabel}>{labels.networkSortOrder}</Text>
-        <Switch
-          accessibilityLabel={labels.networkSortOrder}
-          onValueChange={(ascending) =>
-            onSortOrderChange(ascending ? 'ascending' : 'descending')
-          }
-          testID={`${testIDPrefix}.network.sortSwitch`}
-          thumbColor="#FFFFFF"
-          trackColor={{ false: networkColors.border, true: networkColors.accent }}
-          value={sortOrder === 'ascending'}
-        />
-        <Text style={styles.sortLabel}>
-          {sortOrder === 'ascending'
-            ? labels.networkSortAscending
-            : labels.networkSortDescending}
-        </Text>
       </View>
 
       <TextInput

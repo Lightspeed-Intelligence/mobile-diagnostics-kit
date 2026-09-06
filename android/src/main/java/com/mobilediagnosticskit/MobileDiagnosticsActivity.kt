@@ -66,6 +66,7 @@ class MobileDiagnosticsActivity : Activity() {
 
   private var networkQuery = ""
   private var networkFilter = FILTER_ALL
+  private var networkNewestFirst = true
   private var selectedNetworkRecord: NetworkRecord? = null
   private var networkRequestMetric: TextView? = null
   private var networkErrorMetric: TextView? = null
@@ -890,6 +891,14 @@ class MobileDiagnosticsActivity : Activity() {
         danger = true,
       ) {
         confirmClearRequests()
+      }, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+        marginStart = dp(4)
+        marginEnd = dp(4)
+      })
+      addView(actionButton(currentNetworkSortLabel()) { button ->
+        toggleNetworkSortOrder(button as TextView)
+      }.apply {
+        contentDescription = currentNetworkSortDescription()
       }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(4) })
     }.withTopMargin(10))
     scroll.column.addView(searchField(
@@ -1049,7 +1058,10 @@ class MobileDiagnosticsActivity : Activity() {
   private fun refreshNetworkContent() {
     val container = networkRecordsContainer ?: return
     val records = NetworkManager.get().records
-    val snapshot = synchronized(records) { records.toList().asReversed() }
+    val snapshot = synchronized(records) {
+      val captured = records.toList()
+      if (networkNewestFirst) captured.asReversed() else captured
+    }
     val filtered = filterNetworkRecords(snapshot, networkFilter, networkQuery)
     val errors = snapshot.count(::isNetworkError)
     val received = snapshot.sumOf { it.responseLength.toLong().coerceAtLeast(0L) }
@@ -1072,6 +1084,23 @@ class MobileDiagnosticsActivity : Activity() {
       filtered.forEach { record -> container.addView(networkRequestCard(record)) }
     }
   }
+
+  private fun toggleNetworkSortOrder(button: TextView) {
+    networkNewestFirst = !networkNewestFirst
+    button.text = currentNetworkSortLabel()
+    button.contentDescription = currentNetworkSortDescription()
+    refreshNetworkContent()
+  }
+
+  private fun currentNetworkSortLabel(): String = getString(
+    if (networkNewestFirst) R.string.mobile_diagnostics_sort_newest_first
+    else R.string.mobile_diagnostics_sort_oldest_first,
+  )
+
+  private fun currentNetworkSortDescription(): String = getString(
+    R.string.mobile_diagnostics_sort_order_accessibility,
+    currentNetworkSortLabel(),
+  )
 
   private fun filterNetworkRecords(
     records: List<NetworkRecord>,
