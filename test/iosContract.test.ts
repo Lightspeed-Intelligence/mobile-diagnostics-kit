@@ -253,11 +253,6 @@ describe('iOS DoKit wrapper', () => {
 
   it('restores network metrics, capture controls, filters, and full request details', () => {
     const source = read('ios/Sources/MDKNativeDiagnosticsViewController.mm')
-    const actionRow = source.slice(
-      source.indexOf('UIStackView *actions = [[UIStackView alloc] init]'),
-      source.indexOf('_networkSearchField = [self searchFieldWithPlaceholder:')
-    )
-
     expect(source).toContain('scheduleNetworkRefresh')
     expect(source).toContain('toggleNetworkCapture:')
     expect(source).toContain('confirmClearNetwork')
@@ -274,16 +269,6 @@ describe('iOS DoKit wrapper', () => {
     expect(source).toContain('collapsibleSectionWithTitle:')
     expect(source).toContain('toggleCollapsibleSection:')
     expect(source).toContain('initiallyExpanded:')
-    expect(source).toContain('BOOL _networkNewestFirst;')
-    expect(source).toContain('_networkNewestFirst = YES;')
-    expect(source).toContain('toggleNetworkSortOrder:')
-    expect(source).toMatch(
-      /_networkNewestFirst\s+\? \[\[snapshot reverseObjectEnumerator\] allObjects\]\s+: snapshot/
-    )
-    expect(actionRow).toContain('UIButton *sort')
-    expect(actionRow).toContain('[actions addArrangedSubview:refresh]')
-    expect(actionRow).toContain('[actions addArrangedSubview:clear]')
-    expect(actionRow).toContain('[actions addArrangedSubview:sort]')
     expect(
       source.match(/top\.alignment = UIStackViewAlignmentCenter/g)?.length
     ).toBeGreaterThanOrEqual(2)

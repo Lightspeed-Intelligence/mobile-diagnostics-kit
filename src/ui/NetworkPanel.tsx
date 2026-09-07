@@ -14,8 +14,10 @@ import {
   filterNetworkRequests,
   formatBytes,
   isNetworkError,
+  sortNetworkRequests,
   type NetworkFilter,
   type NetworkRequestSnapshot,
+  type NetworkSortOrder,
 } from '../networkDiagnostics'
 import {
   nativeNetworkDiagnostics,
@@ -41,7 +43,9 @@ interface NetworkPanelProps {
   labels: DiagnosticsLabels
   onFilterChange: (filter: NetworkFilter) => void
   onQueryChange: (query: string) => void
+  onSortOrderChange: (order: NetworkSortOrder) => void
   query: string
+  sortOrder: NetworkSortOrder
   testIDPrefix: string
 }
 
@@ -51,7 +55,9 @@ export function NetworkPanel({
   labels,
   onFilterChange,
   onQueryChange,
+  onSortOrderChange,
   query,
+  sortOrder,
   testIDPrefix,
 }: NetworkPanelProps) {
   const [captureEnabled, setCaptureEnabled] = useState(false)
@@ -88,9 +94,13 @@ export function NetworkPanel({
     return () => clearInterval(timer)
   }, [refresh])
 
+  const orderedRequests = useMemo(
+    () => sortNetworkRequests(requests, sortOrder),
+    [requests, sortOrder]
+  )
   const filtered = useMemo(
-    () => filterNetworkRequests(requests, filter, query),
-    [filter, query, requests]
+    () => filterNetworkRequests(orderedRequests, filter, query),
+    [filter, orderedRequests, query]
   )
   const selected = requests.find(({ id }) => id === selectedId) ?? null
   const errorCount = requests.filter(isNetworkError).length
@@ -207,6 +217,27 @@ export function NetworkPanel({
             {labels.networkClear}
           </Text>
         </Pressable>
+        <View style={styles.sortAction}>
+          <Text style={styles.sortActionLabel}>
+            {sortOrder === 'ascending'
+              ? labels.networkSortAscending
+              : labels.networkSortDescending}
+          </Text>
+          <Switch
+            accessibilityLabel={`${labels.networkSortOrder}: ${
+              sortOrder === 'ascending'
+                ? labels.networkSortAscending
+                : labels.networkSortDescending
+            }`}
+            onValueChange={(ascending) =>
+              onSortOrderChange(ascending ? 'ascending' : 'descending')
+            }
+            testID={`${testIDPrefix}.network.sortSwitch`}
+            thumbColor="#FFFFFF"
+            trackColor={{ false: networkColors.border, true: networkColors.accent }}
+            value={sortOrder === 'ascending'}
+          />
+        </View>
       </View>
 
       <TextInput

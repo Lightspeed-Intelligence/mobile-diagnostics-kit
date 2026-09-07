@@ -68,18 +68,26 @@ describe('cross-platform React Native network inspector', () => {
     ).toBe(false)
   })
 
-  it('does not render the native request-order control on the RN surface', () => {
+  it('renders request ordering in the RN action row', () => {
     const panel = read('src/ui/NetworkPanel.tsx')
     const model = read('src/ui/model.ts')
     const diagnostics = read('src/networkDiagnostics.ts')
     const content = read('src/ui/DiagnosticsContent.tsx')
+    const actionRow = panel.slice(
+      panel.indexOf('<View style={styles.actionRow}>'),
+      panel.indexOf('<TextInput')
+    )
 
-    expect(diagnostics).not.toContain('NetworkSortOrder')
-    expect(content).not.toContain('networkSortOrder')
-    expect(panel).not.toContain('sortNetworkRequests')
-    expect(panel).not.toContain('.network.sortSwitch')
-    expect(model).not.toContain('networkSortAscending')
-    expect(model).not.toContain('networkSortDescending')
+    expect(diagnostics).toContain("order: NetworkSortOrder = 'ascending'")
+    expect(content).toContain("useState<NetworkSortOrder>('ascending')")
+    expect(panel).toContain('sortNetworkRequests(requests, sortOrder)')
+    expect(panel).toContain('testID={`${testIDPrefix}.network.sortSwitch`}')
+    expect(panel).toContain('styles.sortAction')
+    expect(actionRow).toContain('testID={`${testIDPrefix}.network.refreshButton`}')
+    expect(actionRow).toContain('testID={`${testIDPrefix}.network.clearButton`}')
+    expect(actionRow).toContain('testID={`${testIDPrefix}.network.sortSwitch`}')
+    expect(model).toContain("networkSortAscending: 'Oldest'")
+    expect(model).toContain("networkSortDescending: 'Newest'")
   })
 
   it('keeps Network filters outside the request/detail view lifecycle', () => {
@@ -89,6 +97,7 @@ describe('cross-platform React Native network inspector', () => {
     expect(content).toContain("useState<NetworkFilter>('all')")
     expect(content).toContain('onQueryChange={setNetworkQuery}')
     expect(content).toContain('onFilterChange={setNetworkFilter}')
+    expect(content).toContain('onSortOrderChange={setNetworkSortOrder}')
     expect(panel).toContain('query: string')
     expect(panel).toContain('onQueryChange: (query: string) => void')
     expect(panel).not.toContain('const [query, setQuery]')
