@@ -18,7 +18,7 @@ describe('runtime override diagnostics contract', () => {
     expect(activity).toContain('DESTINATION_MOCKS')
     expect(dokit).toContain('DESTINATION_API')
     expect(dokit).toContain('DESTINATION_MOCKS')
-    expect(dokit).toContain('MobileDiagnosticsNativeNetwork.installOverrides(')
+    expect(dokit).toContain('MobileDiagnosticsNativeNetwork.install(')
     expect(nativeNetwork).toContain('fun installOverrides(')
     expect(template).toContain('"api"')
     expect(template).toContain('"mocks"')

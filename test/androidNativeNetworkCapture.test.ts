@@ -13,6 +13,15 @@ function source(relativePath: string): string {
 }
 
 describe('Android native network capture contract', () => {
+  it('uses passive capture for the RN factory without installing the exception-swallowing DoKit interceptor', () => {
+    const doKit = source('android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsDoKit.kt')
+    expect(doKit).toContain('MobileDiagnosticsNativeNetwork.install(')
+    expect(doKit).not.toContain('DokitCapInterceptor')
+    expect(doKit).not.toContain('MobileDiagnosticsImageInterceptor')
+    expect(doKit).toContain('NetworkManager.get().startMonitor()')
+    expect(doKit).toContain('DoKit.Builder(application)')
+  })
+
   it('publishes a passive native exchange recorder for non-RN clients', () => {
     const recorder = source(
       'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsNativeNetwork.kt'

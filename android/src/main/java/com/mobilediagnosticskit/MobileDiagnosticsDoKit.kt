@@ -12,7 +12,6 @@ import com.didichuxing.doraemonkit.aop.DokitPluginConfig
 import com.didichuxing.doraemonkit.kit.AbstractKit
 import com.didichuxing.doraemonkit.kit.core.DoKitManager
 import com.didichuxing.doraemonkit.kit.network.NetworkManager
-import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor
 import com.facebook.react.modules.network.OkHttpClientProvider
 import java.util.LinkedHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -111,12 +110,11 @@ internal object MobileDiagnosticsDoKit {
       .disableUpload()
       .build()
     DoKitManager.ALWAYS_SHOW_MAIN_ICON = false
+    // DoKit's capture interceptor synthesizes HTTP 400 on transport failure.
     OkHttpClientProvider.setOkHttpClientFactory {
-      MobileDiagnosticsNativeNetwork.installOverrides(
+      MobileDiagnosticsNativeNetwork.install(
         OkHttpClientProvider.createClientBuilder(application),
       )
-        .addInterceptor(MobileDiagnosticsImageInterceptor())
-        .addInterceptor(DokitCapInterceptor())
         .build()
     }
     NetworkManager.get().startMonitor()

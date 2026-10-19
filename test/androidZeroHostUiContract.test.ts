@@ -126,10 +126,15 @@ describe('Android zero-host diagnostics UI contract', () => {
     expect(store).toContain('MAX_TOTAL_BYTES')
     expect(store).toContain('MAX_ENTRIES')
     expect(store).toContain('removeEldestEntry()')
-    expect(doKit).toContain('.addInterceptor(MobileDiagnosticsImageInterceptor())')
-    expect(
-      doKit.indexOf('.addInterceptor(MobileDiagnosticsImageInterceptor())')
-    ).toBeLessThan(doKit.indexOf('.addInterceptor(DokitCapInterceptor())'))
+    expect(doKit).toContain('MobileDiagnosticsNativeNetwork.install(')
+    const passiveCapture = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsOkHttpInterceptor.kt'
+    )
+    const nativeNetwork = source(
+      'android/src/main/java/com/mobilediagnosticskit/MobileDiagnosticsNativeNetwork.kt'
+    )
+    expect(passiveCapture).toContain('MobileDiagnosticsNativeNetwork.MAX_IMAGE_BYTES')
+    expect(nativeNetwork).toContain('MobileDiagnosticsImageStore.put(requestId, exchange.responseBody)')
   })
 
   it('keeps current-build information and the established OTA action card', () => {

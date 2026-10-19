@@ -97,18 +97,9 @@ describe('DoKit Expo config plugin', () => {
     expect(buildGradle.match(/dokitx:3\.7\.11/g)).toHaveLength(1)
     expect(buildGradle.match(/dokitx-okhttp-v4:3\.7\.11/g)).toHaveLength(1)
     expect(application.match(/disableUpload\(\)/g)).toHaveLength(1)
-    expect(application.match(/DokitCapInterceptor/g)).toHaveLength(2)
-    expect(application.match(/MobileDiagnosticsImageInterceptor/g)).toHaveLength(2)
-    expect(
-      application.indexOf(
-        '.addInterceptor(MobileDiagnosticsImageInterceptor())'
-      )
-    ).toBeLessThan(
-      application.indexOf('.addInterceptor(DokitCapInterceptor())')
-    )
-    expect(application).toContain(
-      'MobileDiagnosticsNativeNetwork.installOverrides('
-    )
+    expect(application).not.toContain('DokitCapInterceptor')
+    expect(application).not.toContain('MobileDiagnosticsImageInterceptor')
+    expect(application).toContain('MobileDiagnosticsNativeNetwork.install(')
     expect(application.match(/SWITCH_DOKIT_PLUGIN = true/g)).toHaveLength(1)
     expect(application.match(/SWITCH_NETWORK = true/g)).toHaveLength(1)
     expect(
@@ -161,21 +152,9 @@ describe('DoKit Expo config plugin', () => {
       'import com.didichuxing.doraemonkit.kit.network.NetworkManager'
     )
     expect(application.match(/NetworkManager\.get\(\)\.startMonitor\(\)/g)).toHaveLength(1)
-    expect(
-      application.match(
-        /\.addInterceptor\(MobileDiagnosticsImageInterceptor\(\)\)/g
-      )
-    ).toHaveLength(1)
-    expect(
-      application.indexOf(
-        '.addInterceptor(MobileDiagnosticsImageInterceptor())'
-      )
-    ).toBeLessThan(
-      application.indexOf('.addInterceptor(DokitCapInterceptor())')
-    )
-    expect(application).toContain(
-      'MobileDiagnosticsNativeNetwork.installOverrides('
-    )
+    expect(application).not.toContain('DokitCapInterceptor')
+    expect(application).not.toContain('MobileDiagnosticsImageInterceptor')
+    expect(application).toContain('MobileDiagnosticsNativeNetwork.install(')
     expect(application).toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = true')
     expect(application).not.toContain('DoKitManager.IS_NORMAL_FLOAT_MODE = false')
     expect(application).toContain('.putString("float_start_mode", "normal")')
@@ -184,6 +163,29 @@ describe('DoKit Expo config plugin', () => {
     ).toHaveLength(1)
     expect(application).not.toContain('scheduleNetworkKitCleanup()')
     expect(application.match(/installLifecycleRestore\(this\)/g)).toHaveLength(1)
+  })
+
+  it('migrates the current generated capture chain idempotently with CRLF', () => {
+    const { addDoKitToMainApplication } = require('../plugin/withDoKit.js')
+    const current = PREVIOUSLY_GENERATED_MAIN_APPLICATION
+      .replace(
+        'OkHttpClientProvider.createClientBuilder(this)',
+        'MobileDiagnosticsNativeNetwork.installOverrides(\n' +
+          '        OkHttpClientProvider.createClientBuilder(this),\n      )'
+      )
+      .replace(
+        '.addInterceptor(DokitCapInterceptor())',
+        '.addInterceptor(MobileDiagnosticsImageInterceptor())\n' +
+          '        .addInterceptor(DokitCapInterceptor())'
+      )
+      .replaceAll('\n', '\r\n')
+    const application = addDoKitToMainApplication(current)
+    expect(addDoKitToMainApplication(application)).toBe(application)
+    expect(application).not.toContain('DokitCapInterceptor')
+    expect(application).not.toContain('MobileDiagnosticsImageInterceptor')
+    expect(application).not.toContain('installOverrides(')
+    expect(application.match(/MobileDiagnosticsNativeNetwork\.install\(/g)).toHaveLength(1)
+    expect(application).toContain('\r\n')
   })
 
   it('generates host-neutral DoKit kits that open the RN diagnostics destinations', () => {

@@ -14,8 +14,6 @@ const DOKIT_IMPORTS = [
   'import com.didichuxing.doraemonkit.aop.DokitPluginConfig',
   'import com.didichuxing.doraemonkit.kit.core.DoKitManager',
   'import com.didichuxing.doraemonkit.kit.network.NetworkManager',
-  'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
-  'import com.mobilediagnosticskit.MobileDiagnosticsImageInterceptor',
   'import com.mobilediagnosticskit.MobileDiagnosticsNativeNetwork',
   'import com.facebook.react.modules.network.OkHttpClientProvider',
 ]
@@ -111,7 +109,7 @@ function addImport(contents, importLine) {
 function addDoKitToMainApplication(contents) {
   const eol = contents.includes('\r\n') ? '\r\n' : '\n'
   const next = addOverrideInstaller(
-    addImageInterceptor(
+    removeLegacyCapture(
       DOKIT_IMPORTS.reduce(addImport, contents)
         .replaceAll(LEGACY_NETWORK_KIT_CLEANUP, BUILT_IN_KIT_CLEANUP)
         .replaceAll(LEGACY_DOKIT_INIT_MARKER, DOKIT_INIT_MARKER),
@@ -152,11 +150,9 @@ function addDoKitToMainApplication(contents) {
     `${indent}DokitPluginConfig.SWITCH_NETWORK = true`,
     renderDoKitInitialization(indent, eol),
     `${indent}OkHttpClientProvider.setOkHttpClientFactory {`,
-    `${indent}  MobileDiagnosticsNativeNetwork.installOverrides(`,
+    `${indent}  MobileDiagnosticsNativeNetwork.install(`,
     `${indent}    OkHttpClientProvider.createClientBuilder(this),`,
     `${indent}  )`,
-    `${indent}    .addInterceptor(MobileDiagnosticsImageInterceptor())`,
-    `${indent}    .addInterceptor(DokitCapInterceptor())`,
     `${indent}    .build()`,
     `${indent}}`,
   ].join(eol)
@@ -166,22 +162,25 @@ function addDoKitToMainApplication(contents) {
   )
 }
 
-function addImageInterceptor(contents, eol) {
-  const imageInterceptor =
-    '.addInterceptor(MobileDiagnosticsImageInterceptor())'
-  if (contents.includes(imageInterceptor)) return contents
-
-  const doKitInterceptor = '.addInterceptor(DokitCapInterceptor())'
-  const doKitIndex = contents.indexOf(doKitInterceptor)
-  if (doKitIndex < 0) return contents
-
-  const lineStart = contents.lastIndexOf(eol, doKitIndex) + eol.length
-  const indent = contents.slice(lineStart, doKitIndex)
-  return `${contents.slice(0, lineStart)}${indent}${imageInterceptor}${eol}${contents.slice(lineStart)}`
+// Older generated hosts installed DoKit's interceptor, which converts IOExceptions to HTTP 400.
+function removeLegacyCapture(contents, eol) {
+  return contents
+    .split(eol)
+    .filter((line) => ![
+      'import com.didichuxing.doraemonkit.kit.network.okhttp.interceptor.DokitCapInterceptor',
+      'import com.mobilediagnosticskit.MobileDiagnosticsImageInterceptor',
+      '.addInterceptor(DokitCapInterceptor())',
+      '.addInterceptor(MobileDiagnosticsImageInterceptor())',
+    ].includes(line.trim()))
+    .join(eol)
+    .replaceAll(
+      'MobileDiagnosticsNativeNetwork.installOverrides(',
+      'MobileDiagnosticsNativeNetwork.install('
+    )
 }
 
 function addOverrideInstaller(contents, eol) {
-  const installer = 'MobileDiagnosticsNativeNetwork.installOverrides('
+  const installer = 'MobileDiagnosticsNativeNetwork.install('
   if (contents.includes(installer)) return contents
 
   const marker = 'OkHttpClientProvider.createClientBuilder(this)'
